@@ -1,0 +1,44 @@
+import Process from "sys/process"
+import String from "string"
+import Array from "array"
+
+let parseDebug = () =>
+  match (Process.env()) {
+    Ok(vars) => {
+      let env = Array.find(str => String.startsWith("DEBUG=", str), vars)
+      match (env) {
+        Some(str) => {
+          let stripped = String.slice(6, String.length(str), str)
+          match (String.contains(",", stripped)) {
+            false => Some([> stripped]),
+            true => Some(String.split(",", stripped)),
+          }
+        },
+        None => None,
+      }
+    },
+    Err(error) => {
+      print(error)
+      None
+    },
+  }
+
+let log = (name, message) => print("[" ++ name ++ "]" ++ " : " ++ message)
+
+export let debug = name => message => {
+  let params = parseDebug()
+  match (params) {
+    None => void,
+    Some(p) => {
+      if (p[0] == "*") log(name, message)
+      else match (Array.find(s => String.contains(name, s), p)) {
+        None => void,
+        Some(param) =>
+          match (param == name) {
+            true => log(name, message),
+            false => void,
+          },
+      }
+    },
+  }
+}

@@ -1,0 +1,51 @@
+import * from "./types"
+import List from "list"
+import Option from "option"
+import { debug } from "./debug"
+
+let logFromList = debug("fromList")
+
+record PullState<a> {
+  mut looping: Bool,
+  mut pulled: Bool,
+  mut ended: Bool,
+  mut current: a,
+}
+
+export let fromList = (values: List<a>) => (sink: Sink<b>) => {
+  let state = { looping: false, ended: false, pulled: false, current: values }
+  sink(
+    Start(signal => match ((signal, state.looping)) {
+      (Pull, true) => {
+        logFromList("Talkback.Pull looping: true")
+        state.pulled = true
+      },
+      (Close, _) => {
+        logFromList("Talkback.Close")
+        state.ended = true
+        sink(End)
+      },
+      (Pull, false) => {
+        logFromList("Talkback.Pull looping: false")
+        state.pulled = true
+        state.looping = true
+        while (state.pulled && !state.ended) {
+          match (state.current) {
+            [head, ...tail] => {
+              logFromList("Sink(Push)")
+              state.pulled = false
+              state.current = tail
+              sink(Push(head))
+            },
+            [] => {
+              logFromList("End of list")
+              state.ended = true
+              sink(End)
+            },
+          }
+        }
+        state.looping = false
+      },
+    })
+  )
+}

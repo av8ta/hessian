@@ -1,0 +1,42 @@
+import String, { concat } from "string"
+import Result from "result"
+
+record Ought {
+  should: String,
+  did: String,
+}
+
+export record Results {
+  mut fails: Number,
+  mut succeses: Number,
+}
+export let results = { fails: 0, succeses: 0 }
+
+export let equals = (expected, value) =>
+  match (expected == value) {
+    false => Err({ should: "\nto equal: ", did: " did not equal " }),
+    true => Ok({ should: "equal", did: "equals" }),
+  }
+
+export let test = (desc, action, fn, comparator, expected) => {
+  let value = fn()
+  match (comparator(expected, value)) {
+    Err(e) => {
+      results.fails = results.fails + 1
+      print(
+        "❌ " ++
+        desc ++
+        ": \nexpected " ++
+        action ++
+        e.should ++
+        toString(expected) ++
+        "\nbut got: " ++
+        toString(value)
+      )
+    },
+    _ => {
+      results.succeses = results.succeses + 1
+      print("✅ " ++ desc ++ ": " ++ action ++ " ✅")
+    },
+  }
+}

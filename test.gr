@@ -1,0 +1,24 @@
+import * from "./types"
+import { fromList } from "./sources"
+import { forEach } from "./sinks"
+import List from "list"
+import { test, equals, results } from "./packages/test"
+
+test(
+  "fromList source and forEach sink work as expected",
+  "forEach(callback)(fromList([1, 2, 3...]))",
+  () => {
+    let mut result = []
+    let callback = v => {
+      result = List.append([v + 10], result)
+    }
+    forEach(callback)(fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 1e1, 11, 12, 13]))
+    result
+  },
+  equals,
+  [23, 22, 21, 20.0, 19, 18, 17, 16, 15, 14, 13, 12, 11]
+)
+
+print("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
+print("❌ " ++ toString(results.fails) ++ " tests failed.")
+assert(results.fails == 0)

@@ -1,0 +1,33 @@
+import * from "./types"
+import List from "list"
+import Option from "option"
+import { debug } from "./packages/debug"
+
+let logForEach = debug("forEach")
+
+record SubscribeState {
+  mut talkback: Talkback -> Void,
+  mut end: Bool,
+}
+
+export let forEach = callback => (source: Source<a>) => {
+  let placeholder = signal => void
+  let state = { talkback: placeholder, end: false }
+
+  source(signal => match (signal) {
+    Start(talkback) => {
+      state.talkback = talkback
+      logForEach("Start" ++ toString(state))
+      talkback(Pull)
+    },
+    Push(data) when !state.end => {
+      logForEach("Push(data) state: " ++ toString(state))
+      callback(data)
+      state.talkback(Pull)
+    },
+    Push(_) => logForEach("Push(_)" ++ toString(state)),
+    End => {
+      state.end = true
+    },
+  })
+}

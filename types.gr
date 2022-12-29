@@ -1,0 +1,21 @@
+export enum Signal<a> {
+  Start(Talkback -> Void),
+  Push(a),
+  End,
+},
+export enum Talkback {
+  Pull,
+  Close,
+}
+
+export type Sink<a> = Signal<a> -> Void
+
+export type Source<a> = Sink<a> -> Void
+
+export type Operator<a, b> = Source<a> -> Source<b>
+
+export record Subject<a> {
+  source: Source<a>,
+  next: a -> Void,
+  complete: Void -> Void,
+}

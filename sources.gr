@@ -1,7 +1,7 @@
 import * from "./types"
 import List from "list"
 import Option from "option"
-import { debug } from "./debug"
+import { debug } from "./packages/debug"
 
 let logFromList = debug("fromList")
 

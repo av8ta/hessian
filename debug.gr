@@ -1,6 +1,7 @@
 import Process from "sys/process"
 import String from "string"
 import Array from "array"
+import Fs from "sys/file"
 
 let parseDebug = () =>
   match (Process.env()) {
@@ -23,7 +24,12 @@ let parseDebug = () =>
     },
   }
 
-let log = (name, message) => print("[" ++ name ++ "]" ++ " : " ++ message)
+let stderr = message => {
+  Fs.fdWrite(Fs.stderr, message)
+  void
+}
+
+let log = (name, message) => stderr("[" ++ name ++ "]" ++ " : " ++ message)
 
 export let debug = name => message => {
   let params = parseDebug()
@@ -42,3 +48,4 @@ export let debug = name => message => {
     },
   }
 }
+

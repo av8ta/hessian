@@ -1,0 +1,11 @@
+import * from "./types"
+
+export let map = callback => source => sink => {
+  source(signal => sink(
+    match (signal) {
+      Start(talkback) => Start(talkback),
+      Push(data) => Push(callback(data)),
+      End => End,
+    }
+  ))
+}

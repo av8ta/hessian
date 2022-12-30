@@ -1,19 +1,21 @@
 import * from "./types"
 import List from "list"
+import Array from "array"
 import Option from "option"
 import { debug } from "./packages/debug"
 
 let logFromList = debug("fromList")
+let logFromArray = debug("fromArray")
 
 record PullState<a> {
   mut looping: Bool,
   mut pulled: Bool,
   mut ended: Bool,
-  mut current: a,
 }
 
 export let fromList = (values: List<a>) => (sink: Sink<b>) => {
-  let state = { looping: false, ended: false, pulled: false, current: values }
+  let state = { looping: false, ended: false, pulled: false }
+  let mut current = values
   sink(
     Start(signal => match ((signal, state.looping)) {
       (Pull, true) => {
@@ -30,15 +32,55 @@ export let fromList = (values: List<a>) => (sink: Sink<b>) => {
         state.pulled = true
         state.looping = true
         while (state.pulled && !state.ended) {
-          match (state.current) {
+          match (current) {
             [head, ...tail] => {
               logFromList("Sink(Push)")
               state.pulled = false
-              state.current = tail
+              current = tail
               sink(Push(head))
             },
             [] => {
               logFromList("End of list")
+              state.ended = true
+              sink(End)
+            },
+          }
+        }
+        state.looping = false
+      },
+    })
+  )
+}
+
+export let fromArray = (values: Array<a>) => (sink: Sink<b>) => {
+  let state = { looping: false, ended: false, pulled: false }
+  let mut current = 0
+  sink(
+    Start(signal => match ((signal, state.looping)) {
+      (Pull, true) => {
+        logFromArray("Talkback.Pull looping: true")
+        state.pulled = true
+      },
+      (Close, _) => {
+        logFromArray("Talkback.Close")
+        state.ended = true
+        sink(End)
+      },
+      (Pull, false) => {
+        logFromArray("Talkback.Pull looping: false")
+        state.pulled = true
+        state.looping = true
+        while (state.pulled && !state.ended) {
+          match (current < Array.length(values)) {
+            true => {
+              logFromArray("Sink(Push)")
+              state.pulled = false
+              let value = values[current]
+              current += 1
+              sink(Push(value))
+            },
+            false => {
+              logFromArray("End of array")
               state.ended = true
               sink(End)
             },

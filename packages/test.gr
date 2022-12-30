@@ -1,5 +1,11 @@
 import String, { concat } from "string"
 import Result from "result"
+import Fs from "sys/file"
+
+export let stderr = message => {
+  Fs.fdWrite(Fs.stderr, message ++ "\n")
+  void
+}
 
 record Ought {
   should: String,
@@ -22,8 +28,8 @@ export let test = (desc, action, fn, comparator, expected) => {
   let value = fn()
   match (comparator(expected, value)) {
     Err(e) => {
-      results.fails = results.fails + 1
-      print(
+      results.fails += 1
+      stderr(
         "❌ " ++
         desc ++
         ": \nexpected " ++
@@ -35,8 +41,8 @@ export let test = (desc, action, fn, comparator, expected) => {
       )
     },
     _ => {
-      results.succeses = results.succeses + 1
-      print("✅ " ++ desc ++ ": " ++ action ++ " ✅")
+      results.succeses += 1
+      stderr("✅ " ++ desc ++ ": " ++ action ++ " ✅")
     },
   }
 }

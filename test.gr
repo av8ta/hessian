@@ -1,24 +1,90 @@
+import { test, equals, results, stderr } from "./packages/test"
 import * from "./types"
-import { fromList } from "./sources"
-import { forEach } from "./sinks"
+import * from "./index"
 import List from "list"
-import { test, equals, results } from "./packages/test"
+import Array from "array"
 
 test(
   "fromList source and forEach sink work as expected",
-  "forEach(callback)(fromList([1, 2, 3...]))",
+  "",
   () => {
     let mut result = []
-    let callback = v => {
-      result = List.append([v + 10], result)
-    }
-    forEach(callback)(fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 1e1, 11, 12, 13]))
+    let callback = v => result = List.append([v + 10], result)
+
+    pipe2(
+      fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 1e1, 11, 12, 13]),
+      forEach(callback)
+    )
     result
   },
   equals,
   [23, 22, 21, 20.0, 19, 18, 17, 16, 15, 14, 13, 12, 11]
 )
 
-print("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
-print("❌ " ++ toString(results.fails) ++ " tests failed.")
-assert(results.fails == 0)
+test(
+  "map works as expected",
+  "map(v => v + 10)",
+  () => {
+    let mut result = [>]
+    let callback = v => result = Array.append(result, [> v])
+
+    pipe3(
+      fromList([1, 2, 3, 4, 5, 6, 7, 8]),
+      map(v => v + 10),
+      forEach(callback)
+    )
+    result
+  },
+  equals,
+  [> 11, 12, 13, 14, 15, 16, 17, 18]
+)
+
+test(
+  "2 pipes compose as expected",
+  "",
+  () => {
+    let mut result = [>]
+    let callback = v => result = Array.append(result, [> v])
+
+    let producer = pipe2(fromList([1, 2, 3, 4, 5, 6, 7, 8]), map(v => v + 10))
+    let consumer = pipe3(producer, map(v => v + 10), forEach(callback))
+    result
+  },
+  equals,
+  [> 21, 22, 23, 24, 25, 26, 27, 28]
+)
+
+test(
+  "3 pipes compose as expected",
+  "",
+  () => {
+    let mut result = [>]
+    let callback = v => result = Array.append(result, [> v])
+
+    let producer = pipe2(fromList([1, 2, 3, 4, 5, 6, 7, 8]), map(v => v + 10))
+    let operator = pipe3(producer, map(v => v + 10), map(v => v + 10))
+    pipe2(operator, forEach(callback))
+    result
+  },
+  equals,
+  [> 31, 32, 33, 34, 35, 36, 37, 38]
+)
+
+test(
+  "final sink should return void",
+  "",
+  () => {
+    let mut result = [>]
+    let callback = v => result = Array.append(result, [> v])
+
+    let producer = pipe2(fromList([1, 2, 3, 4, 5, 6, 7, 8]), map(v => v + 10))
+    let consumer = pipe3(producer, map(v => v + 10), forEach(callback))
+    consumer
+  },
+  equals,
+  void
+)
+
+stderr("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
+stderr("❌ " ++ toString(results.fails) ++ " tests failed.")
+assert results.fails == 0

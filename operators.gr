@@ -9,3 +9,16 @@ export let map = callback => source => sink => {
     }
   ))
 }
+
+export let tap = callback => source => sink => {
+  source(signal => sink(
+    match (signal) {
+      Start(talkback) => Start(talkback),
+      Push(data) => {
+        callback(data)
+        Push(data)
+      },
+      End => End,
+    }
+  ))
+}

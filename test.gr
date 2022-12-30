@@ -85,6 +85,29 @@ test(
   void
 )
 
+test(
+  "tap passes value to sink unmolested",
+  "",
+  () => {
+    let mut result = [>]
+    let mut tapResult = [>]
+    let callback = v => result = Array.append(result, [> v])
+
+    pipe3(
+      fromList([1, 2, 3, 4, 5, 6, 7, 8]),
+      tap(v => {
+        let tappedValue = v + 10
+        tapResult = Array.append(tapResult, [> tappedValue])
+        tappedValue
+      }),
+      forEach(callback)
+    )
+    (result, tapResult)
+  },
+  equals,
+  ([> 1, 2, 3, 4, 5, 6, 7, 8], [> 11, 12, 13, 14, 15, 16, 17, 18])
+)
+
 stderr("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
 stderr("❌ " ++ toString(results.fails) ++ " tests failed.")
 assert results.fails == 0

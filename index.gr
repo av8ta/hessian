@@ -1,7 +1,7 @@
 import { pipe2, pipe3, pipe4, pipe5, pipe6, pipe7, pipe8, pipe9 } from "./pipe"
 import { fromList } from "./sources"
 import { forEach } from "./sinks"
-import { map } from "./operators"
+import { map, tap } from "./operators"
 
 export pipe2
 export pipe3
@@ -14,3 +14,4 @@ export pipe9
 export fromList
 export forEach
 export map
+export tap

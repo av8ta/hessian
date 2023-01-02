@@ -1,0 +1,82 @@
+import * except { toString } from "path"
+import { toString as pathToString } from "path"
+import List from "list"
+import Result from "result"
+import { debug } from "./debug"
+
+export let join = paths => {
+  let log = debug("path:join")
+  let mut errors: List<String> = []
+
+  let appendError = (e, first, second) => {
+    let errorMsg = "Error appending path: " ++
+      toString(e) ++
+      ": (" ++
+      first ++
+      ", " ++
+      second ++
+      ")"
+    log(errorMsg)
+    errors = [errorMsg, ...errors]
+  }
+
+  let appender = (second, first) => {
+    // because we're recursing, the very first append is an empty string
+    // if we append("", "/some-path") we get an incorrect relative path: "./some-path"
+    // this hack of reversing the args fixes it: append("/some-path", "") == "/some-path"
+    let result = match ((first, second)) {
+      ("", _) => append(fromString(second), fromString(first)),
+      _ => append(fromString(first), fromString(second)),
+    }
+
+    match (result) {
+      Ok(path) => {
+        let appenderResult = pathToString(path)
+        log("appenderResult: " ++ appenderResult)
+        appenderResult
+      },
+      Err(e) => {
+        log(toString(e))
+        appendError(e, first, second)
+        ""
+      },
+    }
+  }
+
+  let rec joiner = paths => {
+    match (paths) {
+      [head, ...tail] => appender(head, joiner(tail)),
+      [] => "",
+    }
+  }
+
+  // dirify items except for last item which may be a file
+  // by adding a trailing slash if necessary
+  let dirify = paths => {
+    let last = List.length(paths) - 1
+    List.mapi((item, index) => {
+      match (index != last) {
+        true =>
+          match (isDirectory(fromString(item))) {
+            true => item,
+            false => item ++ "/",
+          },
+        false => item,
+      }
+    }, paths)
+  }
+
+  let joined = match (paths) {
+    [one] => pathToString(fromString(one)),
+    many => joiner(List.reverse(dirify(paths))),
+  }
+
+  match (errors) {
+    [] => Ok(joined),
+    _ => {
+      let error = toString(errors)
+      log(error)
+      Err(error)
+    },
+  }
+}

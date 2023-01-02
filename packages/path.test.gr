@@ -1,0 +1,53 @@
+import { join } from "./path"
+
+assert join(["/abs-dir/"]) == Ok("/abs-dir/")
+assert join(["./rel-dir/"]) == Ok("./rel-dir/")
+assert join(["rel-dir/"]) == Ok("./rel-dir/")
+assert join(["./rel-file"]) == Ok("./rel-file")
+assert join(["rel-file"]) == Ok("./rel-file")
+assert join(["/abs-dir/", "dir/"]) == Ok("/abs-dir/dir/")
+assert join(["/abs-dir/", "file"]) == Ok("/abs-dir/file")
+assert join(["/abs-dir/", "./rel-dir/"]) == Ok("/abs-dir/rel-dir/")
+assert join(["/abs-dir/", "./rel-file"]) == Ok("/abs-dir/rel-file")
+assert join(["./rel-dir/", "./rel-dir/"]) == Ok("./rel-dir/rel-dir/")
+assert join(["./rel-dir/", "./rel-file"]) == Ok("./rel-dir/rel-file")
+assert join(["rel-dir/", "./rel-file"]) == Ok("./rel-dir/rel-file")
+assert join(["./rel-dir/", "./rel-dir/", "./rel-file"]) ==
+  Ok("./rel-dir/rel-dir/rel-file")
+assert join(["./rel-dir/", "rel-dir/", "./rel-file"]) ==
+  Ok("./rel-dir/rel-dir/rel-file")
+assert join(["./rel-dir/", "rel-dir/", "rel-file"]) ==
+  Ok("./rel-dir/rel-dir/rel-file")
+assert join(["/abs-dir/", "rel-dir/", "rel-file"]) ==
+  Ok("/abs-dir/rel-dir/rel-file")
+assert join(["/abs-dir/", "rel-dir/", "rel-file-with-extension.md"]) ==
+  Ok("/abs-dir/rel-dir/rel-file-with-extension.md")
+assert join(["/abs-dir/", "rel-dir/", "rel-file-with-extensions.tar.gz"]) ==
+  Ok("/abs-dir/rel-dir/rel-file-with-extensions.tar.gz")
+assert join(["/abs-dir/", "rel-dir/", "rel-dir-with-extension.md/"]) ==
+  Ok("/abs-dir/rel-dir/rel-dir-with-extension.md/")
+
+assert join(
+  ["/abs-dir////", ".///rel-dir/", ".//////rel-dir-with-extension.md////"]
+) ==
+  Ok("/abs-dir/rel-dir/rel-dir-with-extension.md/")
+
+assert join(
+  ["/abs-dir////", ".///rel-dir/", ".//////rel-file-with-extension.md"]
+) ==
+  Ok("/abs-dir/rel-dir/rel-file-with-extension.md")
+
+assert join(
+  [
+    "/abs-dir////",
+    ".///rel-dir/.///rel-dir/.///rel-dir/",
+    ".//////rel-file-with-extension.md",
+  ]
+) ==
+  Ok("/abs-dir/rel-dir/rel-dir/rel-dir/rel-file-with-extension.md")
+
+assert join(["one-segment", "plus/many/segments/in/string"]) ==
+  Ok("./one-segment/plus/many/segments/in/string")
+
+assert join(["a", "/b"]) ==
+  Err("[\"Error appending path: AppendAbsolute: (./a/, /b)\"]")

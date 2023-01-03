@@ -1,0 +1,90 @@
+import {
+  stderr,
+  isDirectoryPath,
+  isFilePath,
+  normalisePath,
+  openFile,
+  touch,
+  statEntity,
+  entityExists,
+  dirExists,
+  fileExists,
+  findExistingParent,
+  mkdir,
+  ensureDir,
+  ensureFile,
+  rimraf,
+  removeDir,
+  removeFile,
+} from "./file"
+import String from "string"
+import Result from "result"
+import { join } from "./path"
+import File from "sys/file"
+
+removeFile("./tmp")
+ignore(rimraf("./tmp"))
+
+let isFileDescriptor = str => String.startsWith("Ok(FileDescriptor(", str)
+
+assert isDirectoryPath("./a/b/c") == false
+assert isDirectoryPath("./a/b/c/") == true
+assert isDirectoryPath("./a/b/c//") == true
+assert isDirectoryPath("./a/b/c///") == true
+assert isDirectoryPath("/tmp/a/b/c") == false
+assert isDirectoryPath("/tmp/a/b/c/") == true
+assert isDirectoryPath("/tmp/a/b/c///") == true
+assert isFilePath("./a/b/c/") == false
+assert isFilePath("./a/b/c") == true
+assert isFilePath("./a/b/c.md") == true
+assert isFilePath("./a/b/c.md/") == false
+assert normalisePath("./a/b/c/") == "./a/b/c/"
+assert normalisePath("./a/b/c///") == "./a/b/c/"
+assert normalisePath("./a/b/c") == "./a/b/c"
+assert openFile("/tmp/testfile.gr") ==
+  Err("ENOTCAPABLE Cannot open path: /tmp/testfile.gr")
+assert openFile("./tmp/testfile.gr") ==
+  Err("ENOENT No such file or directory: ./tmp/testfile.gr")
+assert isFileDescriptor(toString(openFile("./packages/file.gr")))
+
+assert isFileDescriptor(toString(openFile("./packages/../packages/file.gr")))
+assert touch("./tmp/testfile.gr") ==
+  Err("ENOENT No such file or directory: ./tmp/testfile.gr")
+assert statEntity("./tmp/testfile.gr") ==
+  Err("ENOENT No such file or directory: ./tmp/testfile.gr")
+assert entityExists("./tmp/testfile.gr") == false
+assert dirExists("./tmp/testfile.gr") == false
+assert dirExists("./tmp/") == false
+assert fileExists("./tmp/testfile.gr") == false
+assert findExistingParent("./tmp/testfile.gr") ==
+  ("./", ["./tmp/", "./tmp/testfile.gr"])
+assert mkdir("./tmp/a/b/c") ==
+  Err("ENOENT No such file or directory: Error creating directory: ./tmp/a/b/c")
+assert Result.isOk(ensureDir("./tmp/"))
+assert Result.isOk(ensureFile("./tmp/testfile.gr"))
+assert Result.isOk(ensureFile("./tmp/a/b/file"))
+assert Result.isOk(touch("./tmp/testfile.gr"))
+assert Result.isOk(statEntity("./tmp/testfile.gr"))
+assert entityExists("./tmp/testfile.gr") == true
+assert dirExists("./tmp/testfile.gr") == false
+assert dirExists("./tmp/") == true
+assert fileExists("./tmp/testfile.gr") == true
+assert findExistingParent("./tmp/testfile.gr") == ("./tmp/testfile.gr", [])
+assert Result.isOk(mkdir("./tmp/a/b/c"))
+assert fileExists("./tmp/a/b/file") == true
+assert fileExists("./tmp/a/b/c/d/file") == false
+assert fileExists("./tmp/a/b/c/x/y/file") == false
+assert findExistingParent("./tmp/a/b/c/d/file") ==
+  ("./tmp/a/b/c/", ["./tmp/a/b/c/d/", "./tmp/a/b/c/d/file"])
+let (parentD, _) = findExistingParent("./tmp/a/b/c/d/file")
+let (parentY, _) = findExistingParent("./tmp/a/b/c/x/y/file")
+assert parentD == parentY
+
+ignore(rimraf("./tmp"))
+assert fileExists("./tmp/a/b/file") == false
+assert dirExists("./tmp/") == false
+assert Result.isOk(ensureFile("./tmp"))
+assert removeDir("./tmp") == Err("ENOTDIR Entity is not a directory: ./tmp")
+
+removeFile("./tmp")
+stderr("\n\nTests Pass.")

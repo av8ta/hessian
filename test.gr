@@ -1,10 +1,19 @@
-import { test, equals, results, stderr } from "./packages/test"
+import {
+  test,
+  equals,
+  results,
+  logError,
+  logSuccess,
+  logInfo,
+} from "./packages/test"
 import * from "./types"
 import List from "list"
 import Array from "array"
 
 import * from "./index"
 import Sinks, { writeFile } from "./sinks"
+
+let print = logInfo
 
 test(
   "fromList source and forEach sink work as expected",
@@ -178,6 +187,6 @@ test(
   void
 )
 
-stderr("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
-stderr("❌ " ++ toString(results.fails) ++ " tests failed.")
+logSuccess("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
+logError("❌ " ++ toString(results.fails) ++ " tests failed.")
 assert results.fails == 0

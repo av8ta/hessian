@@ -2,17 +2,30 @@ import * from "./types"
 import List from "list"
 import Option from "option"
 import { debug } from "./packages/debug"
+import File, { fdWrite, FileDescriptor } from "sys/file"
+import { stderr, ensureFile, appendFile } from "./packages/file"
+import Int64 from "int64"
 
 let logForEach = debug("forEach")
+let logWriteFile = debug("writeFile")
 
-record SubscribeState {
-  mut talkback: Talkback -> Void,
+record SubscribeState<e> {
+  mut talkback: Talkback<e> -> Void,
   mut end: Bool,
+  mut offset: Int64,
+}
+
+export enum IOFile {
+  Fd(FileDescriptor),
+  FilePath(String),
+},
+export record WriteFileOptions {
+  file: IOFile,
 }
 
 export let forEach = callback => (source: Source<a>) => {
   let placeholder = signal => void
-  let state = { talkback: placeholder, end: false }
+  let state = { talkback: placeholder, end: false, offset: 0L }
 
   source(signal => match (signal) {
     Start(talkback) => {
@@ -26,6 +39,64 @@ export let forEach = callback => (source: Source<a>) => {
       state.talkback(Pull)
     },
     Push(_) => logForEach("Push(_)" ++ toString(state)),
+    End => {
+      state.end = true
+    },
+  })
+}
+
+export let writeFile = callback => (source: Source<a>) => {
+  let placeholder = signal => void
+  let state = { talkback: placeholder, end: false, offset: 0L }
+
+  source(signal => match (signal) {
+    Start(talkback) => {
+      state.talkback = talkback
+      logWriteFile("Start" ++ toString(state))
+      talkback(Pull)
+    },
+    Push(data) when !state.end => {
+      logWriteFile("Push(data) state: " ++ toString(state))
+      let (options, value) = callback(data)
+      match (options.file) {
+        FilePath(path) => {
+          ensureFile(path)
+          match (appendFile(path, state.offset, value)) {
+            Ok(numBytes) => {
+              match (numBytes) {
+                Ok(num) => {
+                  state.offset = Int64.add(state.offset, Int64.fromNumber(num))
+                  Push(num)
+                  void
+                },
+                Err(e) => {
+                  stderr(toString(e))
+                  state.talkback(Error(toString(e)))
+                },
+              }
+            },
+            Err(e) => {
+              stderr(e)
+              state.talkback(Error(e))
+            },
+          }
+        },
+        Fd(fd) => {
+          match (fdWrite(fd, value)) {
+            Ok(numBytes) => {
+              Push(numBytes)
+              void
+            },
+            Err(e) => {
+              state.talkback(Error(toString(e)))
+              void
+            },
+          }
+        },
+      }
+      state.talkback(Pull)
+    },
+    Push(_) => logWriteFile("Push(_)" ++ toString(state)),
     End => {
       state.end = true
     },

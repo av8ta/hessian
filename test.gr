@@ -1,8 +1,10 @@
 import { test, equals, results, stderr } from "./packages/test"
 import * from "./types"
-import * from "./index"
 import List from "list"
 import Array from "array"
+
+import * from "./index"
+import Sinks, { writeFile } from "./sinks"
 
 test(
   "fromList source and forEach sink work as expected",
@@ -158,6 +160,22 @@ test(
   },
   equals,
   [> 31, 32, 33, 34, 35, 36, 37, 38]
+)
+
+test(
+  "writeFile appends to file at path",
+  "                ",
+  () => {
+    let options = {
+      file: Sinks.FilePath("./tmp/write.txt"),
+    }: Sinks.WriteFileOptions
+
+    fromArray([> 1, 2, 3, 4, 5, 6, 7, 8]) |>
+      map(v => v + 11) |>
+      writeFile(v => (options, toString(v) ++ "\n"))
+  },
+  equals,
+  void
 )
 
 stderr("\n✅ " ++ toString(results.succeses) ++ " tests passed.")

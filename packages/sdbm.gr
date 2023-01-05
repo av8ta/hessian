@@ -1,0 +1,17 @@
+import String from "string"
+import Int32 from "int32"
+import Number from "number"
+
+export let sdbm = string => {
+  let mut hash = 0l
+  let (+) = Int32.add
+  let (-) = Int32.sub
+
+  String.forEachCodePoint(code => {
+    // hash = code + (hash << 6) + (hash << 16) - hash
+    hash = Int32.fromNumber(code) + Int32.shl(hash, 6l) + Int32.shl(hash, 16l) -
+      hash
+  }, string)
+
+  Number.abs(Int32.toNumber(hash))
+}

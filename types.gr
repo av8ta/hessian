@@ -1,11 +1,12 @@
 export enum Signal<a> {
-  Start(Talkback -> Void),
+  Start(Talkback<String> -> Void),
   Push(a),
   End,
 },
-export enum Talkback {
+export enum Talkback<e> {
   Pull,
   Close,
+  Error(e),
 }
 
 export type Sink<a> = Signal<a> -> Void

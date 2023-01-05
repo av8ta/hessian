@@ -27,6 +27,11 @@ export let fromList = (values: List<a>) => (sink: Sink<b>) => {
         state.ended = true
         sink(End)
       },
+      (Error(e), _) => {
+        logFromList("Talkback.Error" ++ toString(e))
+        state.ended = true
+        sink(End)
+      },
       (Pull, false) => {
         logFromList("Talkback.Pull looping: false")
         state.pulled = true
@@ -63,6 +68,11 @@ export let fromArray = (values: Array<a>) => (sink: Sink<b>) => {
       },
       (Close, _) => {
         logFromArray("Talkback.Close")
+        state.ended = true
+        sink(End)
+      },
+      (Error(e), _) => {
+        logFromList("Talkback.Error: " ++ toString(e))
         state.ended = true
         sink(End)
       },

@@ -4,6 +4,10 @@ import List from "list"
 import Result from "result"
 import { debug } from "./debug"
 
+
+export let isDirectoryPath = (path: String) => isDirectory(fromString(path))
+export let isFilePath = (path: String) => !isDirectoryPath(path)
+
 export let join = paths => {
   let log = debug("path:join")
   let mut errors: List<String> = []

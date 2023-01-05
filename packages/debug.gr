@@ -24,7 +24,7 @@ let parseDebug = () =>
     },
   }
 
-let stderr = message => {
+export let stderr = message => {
   Fs.fdWrite(Fs.stderr, message ++ "\n")
   void
 }
@@ -48,4 +48,3 @@ export let debug = name => message => {
     },
   }
 }
-

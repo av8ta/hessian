@@ -273,3 +273,16 @@ export let removeFile = (path: String) =>
     Err(e) => Err(toString(systemErrors(e, path))),
     _ => Ok(void),
   }
+
+export let appendFile = (path: String, offset: Int64, data: String) => {
+  match (getFdWithRights(normalisePath(path), [File.FdWrite])) {
+    Ok(fd) => Ok(File.fdPwrite(fd, data, offset)),
+    Err(e) => systemErrors(e, path),
+  }
+}
+export let writeFile = (path: String, data: String) => {
+  match (getFdWithRights(normalisePath(path), [File.FdWrite])) {
+    Ok(fd) => Ok(File.fdWrite(fd, data)),
+    Err(e) => systemErrors(e, path),
+  }
+}

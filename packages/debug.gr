@@ -1,7 +1,60 @@
 import Process from "sys/process"
 import String from "string"
 import Array from "array"
-import Fs from "sys/file"
+import File from "sys/file"
+import {
+  black,
+  bgBlack,
+  red,
+  bgRed,
+  green,
+  bgGreen,
+  yellow,
+  bgYellow,
+  blue,
+  bgBlue,
+  magenta,
+  bgMagenta,
+  cyan,
+  bgCyan,
+  white,
+  bgWhite,
+} from "./colours"
+import Random from "random"
+import { sdbm as hash } from "./sdbm"
+
+let stderr = message => {
+  File.fdWrite(File.stderr, "\n" ++ message)
+  void
+}
+
+export let logError = message => stderr(red(message))
+export let logSuccess = message => stderr(green(message))
+export let logInfo = message => stderr(cyan(message))
+
+let log = (name, message) => logInfo("[" ++ name ++ "]" ++ " : " ++ message)
+
+export let colours = (num, message) =>
+  match (num) {
+    0 => stderr(red(message)),
+    1 => stderr(bgRed(message)),
+    2 => stderr(green(message)),
+    3 => stderr(bgGreen(message)),
+    4 => stderr(yellow(message)),
+    5 => stderr(bgYellow(message)),
+    6 => stderr(blue(message)),
+    7 => stderr(bgBlue(message)),
+    8 => stderr(magenta(message)),
+    9 => stderr(bgMagenta(message)),
+    10 => stderr(cyan(message)),
+    11 => stderr(bgCyan(message)),
+    12 => stderr(white(message)),
+    13 => stderr(bgWhite(message)),
+    _ => stderr(cyan(message)),
+  }
+
+let log = (name, message) =>
+  colours(hash(name) % 13, "[" ++ name ++ "]" ++ " : " ++ message)
 
 let parseDebug = () =>
   match (Process.env()) {
@@ -23,13 +76,6 @@ let parseDebug = () =>
       None
     },
   }
-
-export let stderr = message => {
-  Fs.fdWrite(Fs.stderr, message ++ "\n")
-  void
-}
-
-let log = (name, message) => stderr("[" ++ name ++ "]" ++ " : " ++ message)
 
 export let debug = name => message => {
   let params = parseDebug()

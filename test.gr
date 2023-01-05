@@ -126,6 +126,40 @@ test(
   void
 )
 
+test(
+  "custom pipe operator composes as expected",
+  "        ",
+  () => {
+    let mut result = [>]
+    let callback = v => result = Array.append(result, [> v])
+
+    let producer = pipe2(fromList([1, 2, 3, 4, 5, 6, 7, 8]), map(v => v + 10))
+    let operator = pipe3(producer, map(v => v + 10), map(v => v + 10))
+    operator |> forEach(callback)
+    result
+  },
+  equals,
+  [> 31, 32, 33, 34, 35, 36, 37, 38]
+)
+
+test(
+  "custom pipe operator is great devEx!",
+  "             ",
+  () => {
+    let mut result = [>]
+    let callback = v => result = Array.append(result, [> v])
+
+    fromList([1, 2, 3, 4, 5, 6, 7, 8]) |>
+      map(v => v + 10) |>
+      map(v => v + 10) |>
+      map(v => v + 10) |>
+      forEach(callback)
+    result
+  },
+  equals,
+  [> 31, 32, 33, 34, 35, 36, 37, 38]
+)
+
 stderr("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
 stderr("❌ " ++ toString(results.fails) ++ " tests failed.")
 assert results.fails == 0

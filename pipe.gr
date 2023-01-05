@@ -6,3 +6,5 @@ export let pipe6 = (a, b, c, d, e, f) => f(e(d(c(b(a)))))
 export let pipe7 = (a, b, c, d, e, f, g) => g(f(e(d(c(b(a))))))
 export let pipe8 = (a, b, c, d, e, f, g, h) => h(g(f(e(d(c(b(a)))))))
 export let pipe9 = (a, b, c, d, e, f, g, h, i) => i(h(g(f(e(d(c(b(a))))))))
+
+export let (|>) = (a, b) => b(a)

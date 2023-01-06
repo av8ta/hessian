@@ -15,6 +15,13 @@ import { join } from "./path"
 import Result from "result"
 import List from "list"
 import Array from "array"
+import Int64 from "int64"
+
+export enum FilePath {
+  Fd(File.FileDescriptor),
+  Path(String), /* fd = File.pwdfd */
+  FdPath(File.FileDescriptor, String),
+}
 
 export let isDirectoryPath = (path: String) => isDirectory(pathFromString(path))
 export let isFilePath = (path: String) => !isDirectoryPath(path)
@@ -40,30 +47,82 @@ let systemErrors = (error, path: String) => {
   }
 }
 
-export let openFile = (path: String) => {
+export let getFdFromPwd = (path: String, rights: List<Rights>) => {
   let filePath = normalisePath(path)
-  match (isFilePath(filePath)) {
-    true => {
-      let opened = File.pathOpen(File.pwdfd, [], filePath, [], [], [], [])
-      match (opened) {
-        Ok(fd) => {
-          match (File.fdStats(fd)) {
-            Ok(stats: Stats) => {
-              match (stats.filetype) {
-                File.Directory: Filetype => {
-                  ignore(File.fdClose(fd))
-                  Err("File path is a directory: " ++ path)
-                },
-                _ => Ok(fd),
-              }
-            },
-            _ => Err("Error stat'ing file" ++ path),
-          }
-        },
+  let file = File.pathOpen(File.pwdfd, [], filePath, [], rights, rights, [])
+  match (file) {
+    Ok(fd) => Ok(fd),
+    Err(e) => systemErrors(e, path),
+  }
+}
+export let getFdFromFd = (fd, path: String, rights: List<Rights>) => {
+  let filePath = normalisePath(path)
+  let file = File.pathOpen(fd, [], filePath, [], rights, rights, [])
+  match (file) {
+    Ok(fd) => Ok(fd),
+    Err(e) => systemErrors(e, path),
+  }
+}
+
+export let getFdAndPath = (fd: FilePath, rights: List<Rights>) => {
+  match (fd) {
+    Fd(f) => Ok((f, "./")),
+    Path(path) => {
+      match (getFdFromPwd(normalisePath(path), rights)) {
+        Ok(fd) => Ok((fd, path)),
         Err(e) => systemErrors(e, path),
       }
     },
-    false => Err("File path is a directory: " ++ path),
+    FdPath(fd, path) => {
+      match (getFdFromFd(fd, normalisePath(path), rights)) {
+        Ok(f) => Ok((f, path)),
+        Err(e) => systemErrors(e, path),
+      }
+    },
+  }
+}
+
+export let getFd = (fd: FilePath, rights: List<Rights>) => {
+  match (getFdAndPath(fd, rights)) {
+    Ok((f, _)) => Ok(f),
+    Err(e) => Err(e),
+  }
+}
+
+export let openFile = (fd: FilePath) => {
+  let rights = [
+    File.FdRead,
+    File.FdWrite,
+    File.FdSeek,
+    File.FdTell,
+    File.FdSetFlags,
+  ]
+  match (getFdAndPath(fd, rights)) {
+    Err(e) => Err(e),
+    Ok((file, path)) =>
+      match (isFilePath(path)) {
+        true => {
+          let opened = File.pathOpen(File.pwdfd, [], path, [], [], [], [])
+          match (opened) {
+            Ok(fd) => {
+              match (File.fdStats(fd)) {
+                Ok(stats: Stats) => {
+                  match (stats.filetype) {
+                    File.Directory: Filetype => {
+                      ignore(File.fdClose(fd))
+                      Err("File path is a directory: " ++ path)
+                    },
+                    _ => Ok(fd),
+                  }
+                },
+                _ => Err("Error stat'ing file" ++ path),
+              }
+            },
+            Err(e) => systemErrors(e, path),
+          }
+        },
+        false => Err("File path is a directory: " ++ path),
+      },
   }
 }
 
@@ -191,19 +250,10 @@ export let ensureFile = (path: String) => {
   }
 }
 
-export let getFdWithRights = (path: String, rights: List<Rights>) => {
-  let filePath = normalisePath(path)
-  let file = File.pathOpen(File.pwdfd, [], filePath, [], rights, rights, [])
-  match (file) {
-    Ok(fd) => Ok(fd),
-    Err(e) => systemErrors(e, path),
-  }
-}
-
 export let ls = (path: String) => {
   let dirPath = normalisePath(path)
   let rights = [File.FdReaddir, File.PathReadlink]
-  match (getFdWithRights(dirPath, rights)) {
+  match (getFdFromPwd(dirPath, rights)) {
     Ok(fd) => Result.toOption(File.fdReaddir(fd)),
     Err(e) => {
       stderr(e)
@@ -214,7 +264,7 @@ export let ls = (path: String) => {
 
 export let removeDir = (path: String) => {
   let dirPath = normalisePath(path)
-  match (getFdWithRights(dirPath, [File.PathRemoveDirectory])) {
+  match (getFdFromPwd(dirPath, [File.PathRemoveDirectory])) {
     Ok(fd) =>
       match (File.pathRemoveDirectory(File.pwdfd, dirPath)) {
         Ok(_) => Ok(void),
@@ -255,7 +305,7 @@ export let rimraf = (path: String) => {
               }
             },
             File.SymbolicLink =>
-              fail "nt yey implemented! unlink symbolic link?: " ++
+              fail "not yet implemented! unlink symbolic link?: " ++
                 entry.path,
             _ => void,
           }
@@ -275,14 +325,37 @@ export let removeFile = (path: String) =>
   }
 
 export let appendFile = (path: String, offset: Int64, data: String) => {
-  match (getFdWithRights(normalisePath(path), [File.FdWrite])) {
-    Ok(fd) => Ok(File.fdPwrite(fd, data, offset)),
+  match (getFdFromPwd(normalisePath(path), [File.FdWrite])) {
+    Ok(fd) =>
+      match (File.fdPwrite(fd, data, offset)) {
+        Ok(x) => Ok(x),
+        Err(e) => systemErrors(e, path),
+      },
     Err(e) => systemErrors(e, path),
   }
 }
 export let writeFile = (path: String, data: String) => {
-  match (getFdWithRights(normalisePath(path), [File.FdWrite])) {
-    Ok(fd) => Ok(File.fdWrite(fd, data)),
+  match (getFdFromPwd(normalisePath(path), [File.FdWrite])) {
+    Ok(fd) =>
+      match (File.fdWrite(fd, data)) {
+        Ok(x) => Ok(x),
+        Err(e) => systemErrors(e, path),
+      },
     Err(e) => systemErrors(e, path),
+  }
+}
+
+export let readFileFd = (fd, size: Number) =>
+  match (File.fdRead(fd, size)) {
+    Ok(x) => Ok(x),
+    Err(e) => systemErrors(e, toString(fd)),
+  }
+
+export let readFile = (fd: FilePath, size: Number) => {
+  let rights = [File.FdRead, File.FdSeek, File.FdTell]
+  let file = getFd(fd, rights)
+  match (file) {
+    Ok(f) => readFileFd(f, size),
+    Err(e) => Err(e),
   }
 }

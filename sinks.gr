@@ -3,7 +3,7 @@ import List from "list"
 import Option from "option"
 import { debug } from "./packages/debug"
 import File, { fdWrite, FileDescriptor } from "sys/file"
-import { stderr, ensureFile, appendFile } from "./packages/file"
+import { stderr, ensureFile, appendFile, writeFile as writeFileToDisk } from "./packages/file"
 import Int64 from "int64"
 
 let logForEach = debug("forEach")
@@ -21,6 +21,7 @@ export enum IOFile {
 },
 export record WriteFileOptions {
   file: IOFile,
+  append: Bool,
 }
 
 export let forEach = callback => (source: Source<a>) => {
@@ -61,7 +62,11 @@ export let writeFile = callback => (source: Source<a>) => {
       match (options.file) {
         FilePath(path) => {
           ensureFile(path)
-          match (appendFile(path, state.offset, value)) {
+          let write = match (options.append) {
+            true => appendFile(path, state.offset, value),
+            false => writeFileToDisk(path, value),
+          }
+          match (write) {
             Ok(numBytes) => {
               match (numBytes) {
                 Ok(num) => {

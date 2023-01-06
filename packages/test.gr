@@ -33,7 +33,7 @@ export let test = (desc, action, fn, comparator, expected) => {
         action ++
         e.should ++
         toString(expected) ++
-        "\nbut got: " ++
+        "\nbut  got: " ++
         toString(value)
       )
     },

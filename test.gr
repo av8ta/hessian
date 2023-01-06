@@ -187,6 +187,11 @@ test(
   void
 )
 
-logSuccess("\n✅ " ++ toString(results.succeses) ++ " tests passed.")
-logError("❌ " ++ toString(results.fails) ++ " tests failed.")
+if (results.fails > 0) {
+  logSuccess("✅ " ++ toString(results.succeses) ++ " tests passed.")
+  logError("❌ " ++ toString(results.fails) ++ " tests failed.\n")
+} else {
+  logSuccess("✅ All " ++ toString(results.succeses) ++ " tests passed.\n")
+}
+
 assert results.fails == 0

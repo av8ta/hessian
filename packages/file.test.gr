@@ -87,4 +87,3 @@ assert Result.isOk(ensureFile("./tmp"))
 assert removeDir("./tmp") == Err("ENOTDIR Entity is not a directory: ./tmp")
 
 removeFile("./tmp")
-stderr("\n\nTests Pass.")

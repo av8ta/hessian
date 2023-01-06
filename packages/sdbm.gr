@@ -1,17 +1,52 @@
 import String from "string"
 import Int32 from "int32"
 import Number from "number"
+import Map from "map"
+import Char from "char"
+import Bytes from "bytes"
+import Option from "option"
 
 export let sdbm = string => {
   let mut hash = 0l
   let (+) = Int32.add
   let (-) = Int32.sub
+  let (<<) = Int32.shl
 
   String.forEachCodePoint(code => {
-    // hash = code + (hash << 6) + (hash << 16) - hash
-    hash = Int32.fromNumber(code) + Int32.shl(hash, 6l) + Int32.shl(hash, 16l) -
-      hash
+    hash = Int32.fromNumber(code) + (hash << 6l) + (hash << 16l) - hash
   }, string)
+  hash
+}
 
+export let sdbmNum = string => {
+  let mut hash = 0l
+  let (+) = Int32.add
+  let (-) = Int32.sub
+  let (<<) = Int32.shl
+
+  String.forEachCodePoint(code => {
+    hash = Int32.fromNumber(code) + (hash << 6l) + (hash << 16l) - hash
+  }, string)
   Number.abs(Int32.toNumber(hash))
+}
+
+let zBase32 = String.explode("ybndrfg8ejkmcpqxot1uwisza345h769")
+let encoding = Map.makeSized(32)
+String.forEachCodePointi((code, i) =>
+  Map.set(i, Char.fromCode(code), encoding), String.implode(zBase32))
+
+let iterate = (callback, bytes) => {
+  for (let mut i = 0; i < Bytes.length(bytes); i += 1) {
+    callback(Bytes.getInt8U(i, bytes))
+  }
+}
+
+export let sdbmStr = string => {
+  let mut result = ""
+  let bytes = Bytes.fromString(toString(sdbmNum(string)))
+  iterate(v => {
+    let i = Int32.toNumber(v) % 32
+    result = result ++ Char.toString(Option.unwrap(Map.get(i, encoding)))
+  }, bytes)
+  result
 }

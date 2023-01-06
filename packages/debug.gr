@@ -21,7 +21,7 @@ import {
   bgWhite,
 } from "./colours"
 import Random from "random"
-import { sdbm as hash } from "./sdbm"
+import { sdbmNum as hash } from "./sdbm"
 
 let stderr = message => {
   File.fdWrite(File.stderr, "\n" ++ message)

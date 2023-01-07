@@ -1,89 +1,135 @@
-import {
-  stderr,
-  isDirectoryPath,
-  isFilePath,
-  normalisePath,
-  openFile,
-  touch,
-  statEntity,
-  entityExists,
-  dirExists,
-  fileExists,
-  findExistingParent,
-  mkdir,
-  ensureDir,
-  ensureFile,
-  rimraf,
-  removeDir,
-  removeFile,
-} from "./file"
-import String from "string"
+import File, { Rights, Directory, RegularFile, DirectoryEntry } from "sys/file"
 import Result from "result"
+import Array from "array"
+import List from "list"
 import { join } from "./path"
-import File from "sys/file"
+import {
+  parent,
+  toString as pathToString,
+  fromString as pathFromString,
+} from "path"
+import { logSuccess, logError, logInfo } from "./debug"
 
-removeFile("./tmp")
-ignore(rimraf("./tmp"))
+import * from "./file"
 
-let isFileDescriptor = str => String.startsWith("Ok(FileDescriptor(", str)
+// cleanup ====================================== //
+removeDirForce(File.pwdfd, "./temp")
+removeDirForce(File.pwdfd, "./tmp")
+// cleanup ====================================== //
 
-assert isDirectoryPath("./a/b/c") == false
-assert isDirectoryPath("./a/b/c/") == true
-assert isDirectoryPath("./a/b/c//") == true
-assert isDirectoryPath("./a/b/c///") == true
-assert isDirectoryPath("/tmp/a/b/c") == false
-assert isDirectoryPath("/tmp/a/b/c/") == true
-assert isDirectoryPath("/tmp/a/b/c///") == true
-assert isFilePath("./a/b/c/") == false
-assert isFilePath("./a/b/c") == true
-assert isFilePath("./a/b/c.md") == true
-assert isFilePath("./a/b/c.md/") == false
-assert normalisePath("./a/b/c/") == "./a/b/c/"
-assert normalisePath("./a/b/c///") == "./a/b/c/"
-assert normalisePath("./a/b/c") == "./a/b/c"
-assert openFile("/tmp/testfile.gr") ==
-  Err("ENOTCAPABLE Cannot open path: /tmp/testfile.gr")
-assert openFile("./tmp/testfile.gr") ==
-  Err("ENOENT No such file or directory: ./tmp/testfile.gr")
-assert isFileDescriptor(toString(openFile("./packages/file.gr")))
+assert fdIsPwd(File.pwdfd)
+assert !fdIsPwd(File.stdin)
+assert fdIsStdin(File.stdin)
+assert fdIsStdout(File.stdout)
+assert fdIsStderr(File.stderr)
 
-assert isFileDescriptor(toString(openFile("./packages/../packages/file.gr")))
-assert touch("./tmp/testfile.gr") ==
-  Err("ENOENT No such file or directory: ./tmp/testfile.gr")
-assert statEntity("./tmp/testfile.gr") ==
-  Err("ENOENT No such file or directory: ./tmp/testfile.gr")
-assert entityExists("./tmp/testfile.gr") == false
-assert dirExists("./tmp/testfile.gr") == false
-assert dirExists("./tmp/") == false
-assert fileExists("./tmp/testfile.gr") == false
-assert findExistingParent("./tmp/testfile.gr") ==
-  ("./", ["./tmp/", "./tmp/testfile.gr"])
-assert mkdir("./tmp/a/b/c") ==
-  Err("ENOENT No such file or directory: Error creating directory: ./tmp/a/b/c")
-assert Result.isOk(ensureDir("./tmp/"))
-assert Result.isOk(ensureFile("./tmp/testfile.gr"))
-assert Result.isOk(ensureFile("./tmp/a/b/file"))
-assert Result.isOk(touch("./tmp/testfile.gr"))
-assert Result.isOk(statEntity("./tmp/testfile.gr"))
-assert entityExists("./tmp/testfile.gr") == true
-assert dirExists("./tmp/testfile.gr") == false
-assert dirExists("./tmp/") == true
-assert fileExists("./tmp/testfile.gr") == true
-assert findExistingParent("./tmp/testfile.gr") == ("./tmp/testfile.gr", [])
-assert Result.isOk(mkdir("./tmp/a/b/c"))
-assert fileExists("./tmp/a/b/file") == true
-assert fileExists("./tmp/a/b/c/d/file") == false
-assert fileExists("./tmp/a/b/c/x/y/file") == false
-assert findExistingParent("./tmp/a/b/c/d/file") ==
-  ("./tmp/a/b/c/", ["./tmp/a/b/c/d/", "./tmp/a/b/c/d/file"])
-let (parentD, _) = findExistingParent("./tmp/a/b/c/d/file")
-let (parentY, _) = findExistingParent("./tmp/a/b/c/x/y/file")
-assert parentD == parentY
+assert entityExists(Fd(File.pwdfd))
+assert !entityExists(Fd(File.stderr))
+assert entityExists(FdPath(File.pwdfd, "./"))
+assert !entityExists(FdPath(File.pwdfd, "./tmp"))
+assert !entityExists(FdPath(File.pwdfd, "./tmp/x"))
 
-ignore(rimraf("./tmp"))
-assert fileExists("./tmp/a/b/file") == false
-assert dirExists("./tmp/") == false
-assert Result.isOk(ensureFile("./tmp"))
-assert removeDir("./tmp") == Err("ENOTDIR Entity is not a directory: ./tmp")
+let pwdfdFilestats = fdFilestats(File.pwdfd)
+assert Result.unwrap(pwdfdFilestats).filetype == Directory
 
-removeFile("./tmp")
+let pwdPathFileStatsResult = statEntity(Fd(File.pwdfd))
+assert Result.unwrap(pwdPathFileStatsResult).filetype == Directory
+
+let existingParent = findExistingParent(File.pwdfd, "./tmp/a/b/c/d/file")
+let (dir, pathTo) = existingParent
+assert dir != normalisePath("./tmp")
+assert dir == normalisePath(".///")
+assert pathTo ==
+  [
+    "./tmp/",
+    "./tmp/a/",
+    "./tmp/a/b/",
+    "./tmp/a/b/c/",
+    "./tmp/a/b/c/d/",
+    "./tmp/a/b/c/d/file",
+  ]
+assert Result.isOk(createDirectory(File.pwdfd, "./tmp"))
+assert Result.isOk(removeDir(Path("./tmp")))
+assert Result.isErr(removeDir(Path("./tmp")))
+assert removeDir(Path("./tmp")) ==
+  Err("ENOENT No such file or directory: ./tmp")
+assert Result.isOk(createDir(FdPath(File.pwdfd, "./tmp")))
+assert createDir(FdPath(File.pwdfd, "./tmp")) ==
+  Err("EEXIST Entity already exists: ./tmp")
+
+let fileFdResult = touch(Path("./tmp/touch-file"))
+assert Result.isOk(fileFdResult)
+let fileFd = Result.unwrap(fileFdResult)
+assert !fdIsPwd(fileFd)
+assert entityExists(Path("./tmp/touch-file"))
+let newFileResult = createFile(
+  Path("./tmp/create-file"),
+  { lookupFlag: [], openFlags: [], rights: [], inheriting: [], rwFlags: [] }
+)
+let newFileFd = Result.unwrap(newFileResult)
+assert !fdIsPwd(newFileFd)
+assert Result.isOk(ls(File.pwdfd))
+
+let openFileResult = openFile(
+  Path("./tmp/create-file"),
+  { lookupFlag: [], openFlags: [], rights: [], inheriting: [], rwFlags: [] }
+)
+assert Result.isOk(openFileResult)
+let fileFd = Result.unwrap(openFileResult)
+assert ls(fileFd) == Err("EPERM Permission denied: ./")
+
+assert Result.isOk(createDir(Path("./tmp/directory")))
+
+assert listDirPaths(Path("./tmp")) ==
+  Some((["directory"], ["touch-file", "create-file"]))
+
+// createDir(Path("./temp/"))
+ensureFile(Path("./temp/x"))
+ensureFile(Path("./temp/y"))
+ensureFile(Path("./temp/z"))
+ensureDir(Path("./temp//a"))
+ensureDir(Path("./temp//b"))
+ensureFile(Path("./temp//b///z"))
+ensureFile(Path("./temp//b/c"))
+ensureFile(Path("./temp//b/c///q"))
+print(
+  ensureFile(Path("./temp//b/c///q/1"))
+) // this is wrong. todo. q is a file already!
+
+let content = "0123456789abcdefgh\nijk\nlmnop"
+let written = writeFile(Path("./tmp/write-file"), [], content)
+assert Result.isOk(written)
+let written2 = writeFile(Path("./tmp/write-file"), [File.Append], content)
+assert Result.isOk(written2)
+
+let (fd, data) = Result.unwrap(readFile(Path("./tmp/write-file"), [], 10))
+let (fd, data2) = Result.unwrap(readFile(Fd(fd), [], 99))
+let (string1, _) = data
+let (string2, _) = data2
+assert string1 ++ string2 == content ++ content
+
+match (Result.unwrap(readFile(Fd(fd), [], 99))) {
+  (fd, data) =>
+    match (data) {
+      (string, num) => {
+        assert string == "" && num == 0
+      },
+    },
+}
+
+match (Result.unwrap(readFile(Path("./tmp/write-file"), [], 99))) {
+  (fd, data) =>
+    match (data) {
+      (string, num) => {
+        print(string)
+        print(num)
+        assert string == content ++ content && num == 56
+      },
+    },
+}
+
+// cleanup ====================================== //
+removeDirForce(File.pwdfd, "./temp")
+removeDirForce(File.pwdfd, "./tmp")
+
+logSuccess("\n\nTests pass\n")

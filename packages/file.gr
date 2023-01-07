@@ -1,21 +1,20 @@
 import File, {
-  Filetype,
-  Filestats,
-  Stats,
   Rights,
+  Directory,
+  RegularFile,
   DirectoryEntry,
+  FdFlag,
 } from "sys/file"
-import Path, {
-  fromString as pathFromString,
-  toString as pathToString,
-  isDirectory,
-  parent,
-} from "path"
-import { join } from "./path"
 import Result from "result"
-import List from "list"
 import Array from "array"
-import Int64 from "int64"
+import List from "list"
+import { join } from "./path"
+import {
+  parent,
+  toString as pathToString,
+  fromString as pathFromString,
+} from "path"
+import { logSuccess, logError, logInfo } from "./debug"
 
 export enum FilePath {
   Fd(File.FileDescriptor),
@@ -23,204 +22,266 @@ export enum FilePath {
   FdPath(File.FileDescriptor, String),
 }
 
-export let isDirectoryPath = (path: String) => isDirectory(pathFromString(path))
-export let isFilePath = (path: String) => !isDirectoryPath(path)
-export let normalisePath = (path: String) => pathToString(pathFromString(path))
-
-export let stderr = (message: String) => {
-  ignore(File.fdWrite(File.stderr, message))
+export record PathOpenOptions {
+  lookupFlag: List<File.LookupFlag>,
+  openFlags: List<File.OpenFlag>,
+  rights: List<File.Rights>,
+  inheriting: List<File.Rights>,
+  rwFlags: List<File.FdFlag>,
 }
 
-let ignorePrintErr = (result: Result<a, e>) =>
-  match (result) {
-    Ok(_) => void,
-    Err(e) => stderr(e ++ "\n"),
-  }
+export let normalisePath = (path: String) => pathToString(pathFromString(path))
 
 let systemErrors = (error, path: String) => {
   match (toString(error)) {
+    "SystemError(20)" => Err("EEXIST Entity already exists: " ++ path),
     "SystemError(44)" => Err("ENOENT No such file or directory: " ++ path),
     "SystemError(54)" => Err("ENOTDIR Entity is not a directory: " ++ path),
     "SystemError(55)" => Err("ENOTEMPTY Path is not empty: " ++ path),
+    "SystemError(63)" => Err("EPERM Permission denied: " ++ path),
     "SystemError(76)" => Err("ENOTCAPABLE Cannot open path: " ++ path),
     _ => Err(toString(error)),
   }
 }
 
-export let getFdFromPwd = (path: String, rights: List<Rights>) => {
-  let filePath = normalisePath(path)
-  let file = File.pathOpen(File.pwdfd, [], filePath, [], rights, rights, [])
-  match (file) {
-    Ok(fd) => Ok(fd),
-    Err(e) => systemErrors(e, path),
-  }
-}
-export let getFdFromFd = (fd, path: String, rights: List<Rights>) => {
-  let filePath = normalisePath(path)
-  let file = File.pathOpen(fd, [], filePath, [], rights, rights, [])
-  match (file) {
-    Ok(fd) => Ok(fd),
-    Err(e) => systemErrors(e, path),
-  }
-}
+/**
+ *    Existance
+ */
 
-export let getFdAndPath = (fd: FilePath, rights: List<Rights>) => {
-  match (fd) {
-    Fd(f) => Ok((f, "./")),
-    Path(path) => {
-      match (getFdFromPwd(normalisePath(path), rights)) {
-        Ok(fd) => Ok((fd, path)),
-        Err(e) => systemErrors(e, path),
-      }
-    },
-    FdPath(fd, path) => {
-      match (getFdFromFd(fd, normalisePath(path), rights)) {
-        Ok(f) => Ok((f, path)),
-        Err(e) => systemErrors(e, path),
-      }
-    },
-  }
-}
+export let fdIsPwd = fd => fd == File.pwdfd
+export let fdIsStdin = fd => fd == File.stdin
+export let fdIsStdout = fd => fd == File.stdout
+export let fdIsStderr = fd => fd == File.stderr
 
-export let getFd = (fd: FilePath, rights: List<Rights>) => {
-  match (getFdAndPath(fd, rights)) {
-    Ok((f, _)) => Ok(f),
-    Err(e) => Err(e),
+export let fdFilestats = fd =>
+  match (File.fdFilestats(fd)) {
+    Ok(stats) => Ok(stats),
+    Err(e) => systemErrors(e, "./"),
   }
-}
 
-export let openFile = (fd: FilePath) => {
-  let rights = [
-    File.FdRead,
-    File.FdWrite,
-    File.FdSeek,
-    File.FdTell,
-    File.FdSetFlags,
-  ]
-  match (getFdAndPath(fd, rights)) {
-    Err(e) => Err(e),
-    Ok((file, path)) =>
-      match (isFilePath(path)) {
-        true => {
-          let opened = File.pathOpen(File.pwdfd, [], path, [], [], [], [])
-          match (opened) {
-            Ok(fd) => {
-              match (File.fdStats(fd)) {
-                Ok(stats: Stats) => {
-                  match (stats.filetype) {
-                    File.Directory: Filetype => {
-                      ignore(File.fdClose(fd))
-                      Err("File path is a directory: " ++ path)
-                    },
-                    _ => Ok(fd),
-                  }
-                },
-                _ => Err("Error stat'ing file" ++ path),
-              }
-            },
-            Err(e) => systemErrors(e, path),
-          }
-        },
-        false => Err("File path is a directory: " ++ path),
-      },
-  }
-}
-
-export let touch = (path: String) => {
-  let filePath = normalisePath(path)
-  let openedFile = File.pathOpen(
-    File.pwdfd,
-    [],
-    filePath,
-    [File.Create],
-    [],
-    [],
-    []
-  )
-  match (openedFile) {
-    Ok(fd) => Ok(fd),
-    Err(e) => systemErrors(e, path),
-  }
-}
-
-export let statEntity = (path: String) => {
-  let filePath = normalisePath(path)
-  match (File.pathFilestats(File.pwdfd, [File.SymlinkFollow], filePath)) {
+export let pathFileStats = (fd, path) =>
+  match (File.pathFilestats(fd, [File.SymlinkFollow], path)) {
     Err(e) => systemErrors(e, path),
     Ok(stats) => Ok(stats),
   }
-}
 
-export let entityExists = (path: String) => {
-  let filePath = normalisePath(path)
-  match (statEntity(filePath)) {
+export let statEntity = (file: FilePath) =>
+  match (file) {
+    Fd(fd) => pathFileStats(fd, "./"),
+    Path(path) => pathFileStats(File.pwdfd, path),
+    FdPath(fd, path) => pathFileStats(fd, path),
+  }
+
+export let entityExists = (file: FilePath) =>
+  match (statEntity(file)) {
     Ok(_) => true,
     _ => false,
   }
-}
-export let dirExists = (path: String) => {
-  let filePath = normalisePath(path)
-  match (statEntity(filePath)) {
-    Ok(stats: Filestats) =>
-      match (stats.filetype) {
-        File.Directory: Filetype => true,
-        _ => false,
-      },
-    _ => false,
-  }
-}
-export let fileExists = (path: String) => {
-  let filePath = normalisePath(path)
-  match (statEntity(filePath)) {
-    Ok(stats: Filestats) =>
-      match (stats.filetype) {
-        File.Directory: Filetype => false,
-        _ => true,
-      },
-    _ => false,
-  }
-}
 
-export let findExistingParent = (path: String) => {
-  let rec recurse = (filePath, pathTo: List<String>) => {
-    match (entityExists(filePath)) {
-      true => (filePath, pathTo),
+export let findExistingParent = (fd, path: String) => {
+  let rec recurse = (fd, path, pathTo: List<String>) => {
+    match (entityExists(FdPath(fd, path))) {
+      true => (path, pathTo),
       false => {
-        let parent = pathToString(parent(pathFromString(filePath)))
-        recurse(parent, [filePath, ...pathTo])
+        let parent = pathToString(parent(pathFromString(path)))
+        recurse(fd, parent, [path, ...pathTo])
       },
     }
   }
-  recurse(normalisePath(path), [])
+  recurse(fd, path, [])
 }
 
-export let mkdir = (path: String) => {
+/**
+ *    Creation
+ */
+
+export let createDirectory = (fd, path) => {
   let dirPath = normalisePath(path)
-  match (File.pathCreateDirectory(File.pwdfd, dirPath)) {
+  match (File.pathCreateDirectory(fd, dirPath)) {
     Ok(_) => Ok(void),
-    Err(e) =>
-      match (toString(e)) {
-        "SystemError(20)" =>
-          match (dirExists(path)) {
-            true => Ok(void),
-            false =>
-              Err(
-                "ENOTDIR Error creating directory, non-directory entity exists at path: " ++
-                path
-              ),
-          },
-        "SystemError(44)" =>
-          Err(
-            "ENOENT No such file or directory: Error creating directory: " ++
-            path
-          ),
-        _ => Err("Error creating directory: " ++ path ++ " " ++ toString(e)),
+    Err(e) => systemErrors(e, path),
+  }
+}
+
+export let createDir = (filePath: FilePath) => {
+  match (filePath) {
+    Fd(f) => createDirectory(f, "./"),
+    Path(path) => createDirectory(File.pwdfd, path),
+    FdPath(fd, path) => createDirectory(fd, path),
+  }
+}
+
+export let rmDir = (fd, path) =>
+  match (File.pathRemoveDirectory(fd, path)) {
+    Ok(_) => Ok(void),
+    Err(e) => systemErrors(e, path),
+  }
+
+export let removeDir = (filePath: FilePath) => {
+  match (filePath) {
+    Fd(f) => rmDir(f, "./"),
+    Path(path) => rmDir(File.pwdfd, path),
+    FdPath(fd, path) => rmDir(fd, path),
+  }
+}
+
+export let rmFile = (fd, path) =>
+  match (File.pathUnlink(fd, path)) {
+    Err(e) => systemErrors(e, path),
+    _ => Ok(void),
+  }
+
+export let removeFile = (filePath: FilePath) => {
+  match (filePath) {
+    Fd(f) => rmFile(f, "./"),
+    Path(path) => rmFile(File.pwdfd, path),
+    FdPath(fd, path) => rmFile(fd, path),
+  }
+}
+
+export let touch = (file: FilePath) => {
+  let open = (fd, path) => {
+    let opened = File.pathOpen(fd, [], path, [File.Create], [], [], [])
+    match (opened) {
+      Ok(fd) => Ok(fd),
+      Err(e) => systemErrors(e, path),
+    }
+  }
+  match (file) {
+    Fd(f) => open(f, "./"),
+    Path(path) => open(File.pwdfd, path),
+    FdPath(f, path) => open(f, path),
+  }
+}
+
+export let openFile = (file: FilePath, options: PathOpenOptions) => {
+  let { lookupFlag, openFlags, rights, inheriting, rwFlags } = options
+
+  let open = (fd, path) => {
+    let opened = File.pathOpen(
+      fd,
+      lookupFlag,
+      path,
+      openFlags,
+      rights,
+      inheriting,
+      rwFlags
+    )
+    match (opened) {
+      Ok(fd) => Ok(fd),
+      Err(e) => systemErrors(e, path),
+    }
+  }
+  match (file) {
+    Fd(f) => open(f, "./"),
+    Path(path) => open(File.pwdfd, path),
+    FdPath(f, path) => open(f, path),
+  }
+}
+
+export let createFile = (file: FilePath, options: PathOpenOptions) => {
+  let { lookupFlag, openFlags, rights, inheriting, rwFlags } = options
+  let openFlag = [File.Create, ...openFlags]
+  openFile(
+    file,
+    { lookupFlag, openFlags: openFlag, rights, inheriting, rwFlags }
+  )
+}
+
+export let openFdCallback = (filePath: FilePath, options, callback) => {
+  match (filePath) {
+    Fd(fd) => callback(fd, "./"),
+    Path(path) =>
+      match (openFile(Path(path), options)) {
+        Ok(fd) => callback(fd, path),
+        Err(e) => systemErrors(e, path),
+      },
+    FdPath(fd, path) =>
+      match (openFile(FdPath(fd, path), options)) {
+        Ok(fd) => callback(fd, path),
+        Err(e) => systemErrors(e, path),
       },
   }
 }
-export let mkdirp = (paths: List<String>) => {
+
+export let fdCallback = (filePath: FilePath, callback) =>
+  match (filePath) {
+    Fd(fd) => callback(fd, "./"),
+    Path(path) => callback(File.pwdfd, path),
+    FdPath(fd, path) => callback(fd, path),
+  }
+
+export let ls = fd =>
+  match (File.fdReaddir(fd)) {
+    Ok(entries) => Ok(entries),
+    Err(e) => systemErrors(e, "./"),
+  }
+
+export let listDir = (filePath: FilePath) => {
+  let options = {
+    lookupFlag: [],
+    openFlags: [],
+    rights: [File.FdReaddir, File.PathReadlink],
+    inheriting: [],
+    rwFlags: [],
+  }
+  match (filePath) {
+    Fd(fd) => ls(fd),
+    Path(path) =>
+      match (openFile(Path(path), options)) {
+        Ok(fd) => ls(fd),
+        Err(e) => systemErrors(e, path),
+      },
+    FdPath(fd, path) =>
+      match (openFile(FdPath(fd, path), options)) {
+        Ok(fd) => ls(fd),
+        Err(e) => systemErrors(e, path),
+      },
+  }
+}
+
+export let reduceEntries = entries =>
+  Array.reduce((acc, entry: DirectoryEntry) => {
+    let (dirs, files) = acc
+    match (entry.filetype) {
+      RegularFile => (dirs, [entry.path, ...files]),
+      Directory => ([entry.path, ...dirs], files),
+      _ => ([], []),
+    }
+  }, ([], []), entries)
+
+export let listDirPaths = (filePath: FilePath) =>
+  match (listDir(filePath)) {
+    Ok(entries) => Some(reduceEntries(entries)),
+    Err(e) => {
+      logError(toString(systemErrors(e, toString(filePath))))
+      None
+    },
+  }
+
+let ignoreResultPrint = result => {
+  // Result.peekOk(e => (logSuccess(toString(e) ++ "\n")), result)
+  Result.peekErr(e => logError(toString(e) ++ "\n"), result)
+}
+export let removeDirForce = (fd, rootPath) => {
+  let rec recurse = (fd, path) => {
+
+    match (listDirPaths(FdPath(fd, path))) {
+      None => void,
+      Some((dirs, files)) => {
+        List.forEach(p => recurse(fd, normalisePath(path) ++ "/" ++ p), dirs)
+        List.forEach(p =>
+          ignoreResultPrint(rmFile(fd, normalisePath(path) ++ "/" ++ p)), files)
+        ignoreResultPrint(rmDir(fd, path))
+      },
+    }
+  }
+  recurse(fd, rootPath)
+}
+
+let mkdirp = (fd, paths: List<String>) => {
   let errors = List.reduce((acc, path) => {
-    match (mkdir(path)) {
+    match (createDir(FdPath(fd, path))) {
       Ok(_) => acc,
       Err(e) => [toString(e), ...acc],
     }
@@ -231,118 +292,69 @@ export let mkdirp = (paths: List<String>) => {
   }
 }
 
-export let ensureDir = (path: String) => {
-  let dirPath = normalisePath(path)
-  let (_, pathToDir) = findExistingParent(dirPath)
-  mkdirp(pathToDir)
-}
-
-export let ensureFile = (path: String) => {
-  let filePath = normalisePath(path)
-  match (isFilePath(filePath)) {
-    false => Err("File path is a directory: " ++ path),
-    _ => {
-      match (ensureDir(pathToString(parent(pathFromString(filePath))))) {
-        Ok(_) => touch(filePath),
-        Err(e) => Err("Error creating file: " ++ path ++ " " ++ toString(e)),
-      }
-    },
+export let ensureDir = (filePath: FilePath) => {
+  let makePath = (fd, path) => {
+    let dirPath = normalisePath(path)
+    let (_, pathToDir) = findExistingParent(fd, dirPath)
+    mkdirp(fd, pathToDir)
   }
+  fdCallback(filePath, makePath)
 }
 
-export let ls = (path: String) => {
-  let dirPath = normalisePath(path)
-  let rights = [File.FdReaddir, File.PathReadlink]
-  match (getFdFromPwd(dirPath, rights)) {
-    Ok(fd) => Result.toOption(File.fdReaddir(fd)),
-    Err(e) => {
-      stderr(e)
-      None
-    },
+export let ensureFile = (filePath: FilePath) => {
+  let makePath = (fd, path) => {
+    let dirPath = normalisePath(path)
+    let (_, pathToDir) = findExistingParent(fd, dirPath)
+    mkdirp(fd, pathToDir)
+    touch(filePath)
   }
+  fdCallback(filePath, makePath)
 }
 
-export let removeDir = (path: String) => {
-  let dirPath = normalisePath(path)
-  match (getFdFromPwd(dirPath, [File.PathRemoveDirectory])) {
-    Ok(fd) =>
-      match (File.pathRemoveDirectory(File.pwdfd, dirPath)) {
-        Ok(_) => Ok(void),
-        Err(e) => systemErrors(e, path),
+export let writeFile =
+  (
+    filePath: FilePath,
+    rwFlags: List<FdFlag>,
+    data: String,
+  ) => {
+  let options = {
+    lookupFlag: [],
+    openFlags: [File.Create],
+    rights: [File.FdWrite],
+    inheriting: [],
+    rwFlags,
+  }
+
+  let write = (fd, path) =>
+    match (createFile(filePath, options)) {
+      Ok(fd) => {
+        match (File.fdWrite(fd, data)) {
+          Ok(x) => Ok(x),
+          Err(e) => systemErrors(e, path),
+        }
       },
-    Err(e) => Err(e),
-  }
-}
-
-export let rimraf = (path: String) => {
-  let filePath = normalisePath(path)
-  let rec recurse = path => {
-    let contents = ls(path)
-    match (contents) {
-      Some(entries) => {
-        Array.forEach((entry: DirectoryEntry) => {
-          match (entry.filetype) {
-            File.RegularFile => {
-              let entryPath = join([path, entry.path])
-              match (entryPath) {
-                Ok(filePath) => {
-                  match (File.pathUnlink(File.pwdfd, filePath)) {
-                    Err(e) => stderr(toString(systemErrors(e, filePath))),
-                    _ => void,
-                  }
-                },
-                Err(e) => stderr(e),
-              }
-            },
-            File.Directory: Filetype => {
-              let entryPath = join([path, entry.path])
-              match (entryPath) {
-                Ok(dir) => {
-                  recurse(dir)
-                  ignore(removeDir(dir))
-                },
-                Err(e) => stderr(e),
-              }
-            },
-            File.SymbolicLink =>
-              fail "not yet implemented! unlink symbolic link?: " ++
-                entry.path,
-            _ => void,
-          }
-        }, entries)
-      },
-      None => ignore(removeDir(path)),
+      Err(e) => systemErrors(e, toString(filePath)),
     }
-  }
-  recurse(filePath)
-  ignore(removeDir(filePath))
+
+  fdCallback(filePath, write)
 }
 
-export let removeFile = (path: String) =>
-  match (File.pathUnlink(File.pwdfd, normalisePath(path))) {
-    Err(e) => Err(toString(systemErrors(e, path))),
-    _ => Ok(void),
+export let readFile = (filePath: FilePath, rwFlags: List<FdFlag>, size) => {
+  let options = {
+    lookupFlag: [],
+    openFlags: [],
+    rights: [File.FdRead, File.FdSeek, File.FdTell],
+    inheriting: [],
+    rwFlags,
   }
 
-export let appendFile = (path: String, offset: Int64, data: String) => {
-  match (getFdFromPwd(normalisePath(path), [File.FdWrite])) {
-    Ok(fd) =>
-      match (File.fdPwrite(fd, data, offset)) {
-        Ok(x) => Ok(x),
-        Err(e) => systemErrors(e, path),
-      },
-    Err(e) => systemErrors(e, path),
-  }
-}
-export let writeFile = (path: String, data: String) => {
-  match (getFdFromPwd(normalisePath(path), [File.FdWrite])) {
-    Ok(fd) =>
-      match (File.fdWrite(fd, data)) {
-        Ok(x) => Ok(x),
-        Err(e) => systemErrors(e, path),
-      },
-    Err(e) => systemErrors(e, path),
-  }
+  let read = (fd, path) =>
+    match (File.fdRead(fd, size)) {
+      Ok(x) => Ok((fd,x)),
+      Err(e) => systemErrors(e, path),
+    }
+
+  openFdCallback(filePath, options, read)
 }
 
 export let readFileFd = (fd, size: Number) =>
@@ -350,12 +362,3 @@ export let readFileFd = (fd, size: Number) =>
     Ok(x) => Ok(x),
     Err(e) => systemErrors(e, toString(fd)),
   }
-
-export let readFile = (fd: FilePath, size: Number) => {
-  let rights = [File.FdRead, File.FdSeek, File.FdTell]
-  let file = getFd(fd, rights)
-  match (file) {
-    Ok(f) => readFileFd(f, size),
-    Err(e) => Err(e),
-  }
-}

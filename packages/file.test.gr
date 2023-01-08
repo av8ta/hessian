@@ -51,12 +51,12 @@ assert pathTo ==
 assert Result.isOk(createDirectory(File.pwdfd, "./tmp"))
 assert Result.isOk(removeDir(Path("./tmp")))
 assert Result.isErr(removeDir(Path("./tmp")))
+
 assert removeDir(Path("./tmp")) ==
-  Err("ENOENT No such file or directory: ./tmp")
+  Err("SystemError_ENOENT: No such file or directory.\n    :./tmp")
 assert Result.isOk(createDir(FdPath(File.pwdfd, "./tmp")))
 assert createDir(FdPath(File.pwdfd, "./tmp")) ==
-  Err("EEXIST Entity already exists: ./tmp")
-
+  Err("SystemError_EEXIST: File exists.\n    :./tmp")
 let fileFdResult = touch(Path("./tmp/touch-file"))
 assert Result.isOk(fileFdResult)
 let fileFd = Result.unwrap(fileFdResult)
@@ -76,14 +76,11 @@ let openFileResult = openFile(
 )
 assert Result.isOk(openFileResult)
 let fileFd = Result.unwrap(openFileResult)
-assert ls(fileFd) == Err("EPERM Permission denied: ./")
-
+assert ls(fileFd) == Err("SystemError_EPERM: Operation not permitted.\n    :./")
 assert Result.isOk(createDir(Path("./tmp/directory")))
-
 assert listDirPaths(Path("./tmp")) ==
   Some((["directory"], ["touch-file", "create-file"]))
 
-// createDir(Path("./temp/"))
 ensureFile(Path("./temp/x"))
 ensureFile(Path("./temp/y"))
 ensureFile(Path("./temp/z"))

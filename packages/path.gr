@@ -4,12 +4,12 @@ import List from "list"
 import Result from "result"
 import { debug } from "./debug"
 
-
+// export let normalisePath = (path: String) => pathToString(fromString(path))
 export let isDirectoryPath = (path: String) => isDirectory(fromString(path))
 export let isFilePath = (path: String) => !isDirectoryPath(path)
 
 export let join = paths => {
-  let log = debug("path:join")
+  let log = debug("path:join", None)
   let mut errors: List<String> = []
 
   let appendError = (e, first, second) => {

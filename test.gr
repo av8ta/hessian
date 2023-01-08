@@ -9,13 +9,17 @@ import {
 import * from "./types"
 import List from "list"
 import Array from "array"
+import Result from "result"
 
 import * from "./index"
 import Sinks, { writeFile } from "./sinks"
-import { PwdPath } from "./packages/file"
+import Sources, { readFile } from "./sources"
+import { PwdPath, Fd, openFile, removeDirForce } from "./packages/file"
 import File from "sys/file"
 
 let print = logInfo
+
+removeDirForce(File.pwdfd, "./tmp")
 
 test(
   "fromList source and forEach sink work as expected",
@@ -179,15 +183,96 @@ test(
   () => {
     let options = {
       file: PwdPath("./tmp/write.txt"),
-      rwFlag: [File.Append],
+      rwFlags: [File.Append],
     }: Sinks.WriteFileOptions
 
     fromArray([> 1, 2, 3, 4, 5, 6, 7, 8]) |>
       map(v => v + 10) |>
-      writeFile(v => (options, toString(v) ++ "\n"))
+      writeFile(v => (options, toString(v) ++ ","))
   },
   equals,
   void
+)
+
+test(
+  "readFile reads file from Fd",
+  "                ",
+  () => {
+    let fd = Result.expect(
+      "Error opening file to read: " ++ "./tmp/write.txt",
+      openFile(
+        PwdPath("./tmp/write.txt"),
+        {
+          lookupFlag: [],
+          openFlags: [],
+          rights: [File.FdRead, File.FdSeek, File.FdTell],
+          inheriting: [],
+          rwFlags: [],
+        }
+      )
+    )
+    let options = {
+      file: Fd(fd),
+      rwFlags: [],
+      size: 8,
+    }: Sources.ReadFileOptions
+
+    let mut result = ""
+
+    readFile(options) |>
+      forEach(v => {
+        result = result ++ v
+      })
+    result == "11,12,13,14,15,16,17,18,"
+  },
+  equals,
+  true
+)
+
+test(
+  "readFile reads file from PwdPath",
+  "                ",
+  () => {
+
+    let options = {
+      file: PwdPath("./tmp/write.txt"),
+      rwFlags: [],
+      size: 8,
+    }: Sources.ReadFileOptions
+
+    let mut result = ""
+
+    readFile(options) |>
+      forEach(v => {
+        result = result ++ v
+      })
+    result == "11,12,13,14,15,16,17,18,"
+  },
+  equals,
+  true
+)
+
+test(
+  "readFile errors trying to read non-existent file",
+  "                ",
+  () => {
+
+    let options = {
+      file: PwdPath("./tmp/non-existant-dir/write.txt"),
+      rwFlags: [],
+      size: 8,
+    }: Sources.ReadFileOptions
+
+    let mut result = ""
+
+    readFile(options) |>
+      forEach(v => {
+        result = result ++ v
+      })
+    result == ""
+  },
+  equals,
+  true
 )
 
 if (results.fails > 0) {

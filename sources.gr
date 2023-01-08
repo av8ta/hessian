@@ -2,15 +2,33 @@ import * from "./types"
 import List from "list"
 import Array from "array"
 import Option from "option"
-import { debug } from "./packages/debug"
+import { debug, logError } from "./packages/debug"
+import { systemErrors } from "./packages/syserror"
 
-let logFromList = debug("fromList")
-let logFromArray = debug("fromArray")
+import {
+  Fd,
+  FdPath,
+  FilePath,
+  PathOpenOptions,
+  readFile as readFileFromDisk,
+  openFdCallback,
+} from "./packages/file"
+import File from "sys/file"
+
+let logFromList = debug("hessian:fromList", None)
+let logFromArray = debug("hessian:fromArray", None)
+let logReadFile = debug("hessian:readFile", None)
 
 record PullState<a> {
   mut looping: Bool,
   mut pulled: Bool,
   mut ended: Bool,
+}
+
+export record ReadFileOptions {
+  file: FilePath,
+  rwFlags: List<File.FdFlag>,
+  size: Number,
 }
 
 export let fromList = (values: List<a>) => (sink: Sink<b>) => {
@@ -94,6 +112,92 @@ export let fromArray = (values: Array<a>) => (sink: Sink<b>) => {
               state.ended = true
               sink(End)
             },
+          }
+        }
+        state.looping = false
+      },
+    })
+  )
+}
+
+export let readFile = (options: ReadFileOptions) => (sink: Sink<b>) => {
+  let state = { looping: false, ended: false, pulled: false }
+  let { file, rwFlags, size } = options
+  let mut fd = None
+  let mut openError = ""
+
+  let openFileOptions = {
+    lookupFlag: [],
+    openFlags: [],
+    rights: [File.FdRead, File.FdSeek, File.FdTell],
+    inheriting: [],
+    rwFlags,
+  }: PathOpenOptions
+
+  let open = openResult =>
+    match (openResult) {
+      Ok((f, path)) => {
+        fd = Some(f)
+      },
+      Err(e) => {
+        openError = toString(systemErrors(e, ""))
+      },
+    }
+
+  openFdCallback(file, openFileOptions, open)
+
+  sink(
+    Start(signal => match ((signal, state.looping)) {
+      (Pull, true) => {
+        logReadFile("Talkback.Pull looping: true")
+        state.pulled = true
+      },
+      (Close, _) => {
+        logReadFile("Talkback.Close")
+        state.ended = true
+        sink(End)
+      },
+      (Error(e), _) => {
+        logFromList("Talkback.Error: " ++ toString(e))
+        state.ended = true
+        sink(End)
+      },
+      (Pull, false) => {
+        logReadFile("Talkback.Pull looping: false")
+        state.pulled = true
+        state.looping = true
+        while (state.pulled && !state.ended) {
+          match (fd) {
+            None => {
+              logReadFile(openError)
+              logError(openError)
+              state.ended = true
+              state.pulled = false
+              sink(End)
+            },
+            Some(f) =>
+              match (readFileFromDisk(Fd(f), rwFlags, size)) {
+                Ok((_fd, (data, bytesRead))) => {
+                  match (bytesRead) {
+                    0 => {
+                      logReadFile("End of file.")
+                      state.ended = true
+                      state.pulled = false
+                      sink(End)
+                    },
+                    _ => {
+                      logReadFile("Sink(Push)")
+                      state.pulled = false
+                      sink(Push(data))
+                    },
+                  }
+                },
+                Err(e) => {
+                  logReadFile("End of file?")
+                  state.ended = true
+                  sink(End)
+                },
+              },
           }
         }
         state.looping = false

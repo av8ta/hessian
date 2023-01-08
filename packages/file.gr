@@ -181,16 +181,16 @@ export let createFile = (file: FilePath, options: PathOpenOptions) => {
 
 export let openFdCallback = (filePath: FilePath, options, callback) => {
   match (filePath) {
-    Fd(fd) => callback(fd, "./"),
+    Fd(fd) => callback(Ok((fd, "./"))),
     PwdPath(path) =>
       match (openFile(PwdPath(path), options)) {
-        Ok(fd) => callback(fd, path),
-        Err(e) => systemErrors(e, path),
+        Ok(fd) => callback(Ok((fd, path))),
+        Err(e) => callback(systemErrors(e, path)),
       },
     FdPath(fd, path) =>
       match (openFile(FdPath(fd, path), options)) {
-        Ok(fd) => callback(fd, path),
-        Err(e) => systemErrors(e, path),
+        Ok(fd) => callback(Ok((fd, path))),
+        Err(e) => callback(systemErrors(e, path)),
       },
   }
 }
@@ -338,10 +338,14 @@ export let readFile = (filePath: FilePath, rwFlags: List<FdFlag>, size) => {
     rwFlags,
   }
 
-  let read = (fd, path) =>
-    match (File.fdRead(fd, size)) {
-      Ok(x) => Ok((fd, x)),
-      Err(e) => systemErrors(e, path),
+  let read = openResult =>
+    match (openResult) {
+      Ok((fd, path)) =>
+        match (File.fdRead(fd, size)) {
+          Ok(x) => Ok((fd, x)),
+          Err(e) => systemErrors(e, path),
+        },
+      Err(e) => systemErrors(e, toString(filePath)),
     }
 
   openFdCallback(filePath, options, read)

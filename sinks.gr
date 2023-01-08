@@ -22,7 +22,7 @@ record SubscribeState<e> {
 
 export record WriteFileOptions {
   file: FilePath,
-  rwFlag: List<File.FdFlag>,
+  rwFlags: List<File.FdFlag>,
 }
 
 export let forEach = callback => (source: Source<a>) => {

@@ -12,6 +12,8 @@ import Array from "array"
 
 import * from "./index"
 import Sinks, { writeFile } from "./sinks"
+import { PwdPath } from "./packages/file"
+import File from "sys/file"
 
 let print = logInfo
 
@@ -176,8 +178,8 @@ test(
   "                ",
   () => {
     let options = {
-      file: Sinks.FilePath("./tmp/write.txt"),
-      append: true,
+      file: PwdPath("./tmp/write.txt"),
+      rwFlag: [File.Append],
     }: Sinks.WriteFileOptions
 
     fromArray([> 1, 2, 3, 4, 5, 6, 7, 8]) |>

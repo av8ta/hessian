@@ -3,11 +3,16 @@ import List from "list"
 import Option from "option"
 import { debug } from "./packages/debug"
 import File, { fdWrite, FileDescriptor } from "sys/file"
-import { stderr, ensureFile, appendFile, writeFile as writeFileToDisk } from "./packages/file"
+import {
+  FilePath,
+  ensureFile,
+  writeFile as writeFileToDisk,
+  openFdCallback,
+} from "./packages/file"
 import Int64 from "int64"
 
-let logForEach = debug("forEach")
-let logWriteFile = debug("writeFile")
+let logForEach = debug("hessian:forEach", None)
+let logWriteFile = debug("hessian:writeFile", None)
 
 record SubscribeState<e> {
   mut talkback: Talkback<e> -> Void,
@@ -15,13 +20,9 @@ record SubscribeState<e> {
   mut offset: Int64,
 }
 
-export enum IOFile {
-  Fd(FileDescriptor),
-  FilePath(String),
-},
 export record WriteFileOptions {
-  file: IOFile,
-  append: Bool,
+  file: FilePath,
+  rwFlag: List<File.FdFlag>,
 }
 
 export let forEach = callback => (source: Source<a>) => {
@@ -59,46 +60,19 @@ export let writeFile = callback => (source: Source<a>) => {
     Push(data) when !state.end => {
       logWriteFile("Push(data) state: " ++ toString(state))
       let (options, value) = callback(data)
-      match (options.file) {
-        FilePath(path) => {
-          ensureFile(path)
-          let write = match (options.append) {
-            true => appendFile(path, state.offset, value),
-            false => writeFileToDisk(path, value),
-          }
-          match (write) {
-            Ok(numBytes) => {
-              match (numBytes) {
-                Ok(num) => {
-                  state.offset = Int64.add(state.offset, Int64.fromNumber(num))
-                  Push(num)
-                  void
-                },
-                Err(e) => {
-                  stderr(toString(e))
-                  state.talkback(Error(toString(e)))
-                },
-              }
-            },
-            Err(e) => {
-              stderr(e)
-              state.talkback(Error(e))
-            },
-          }
+      ignore(ensureFile(options.file))
+      match (writeFileToDisk(options.file, [File.Append], value)) {
+        Ok(numBytes) => {
+          state.offset = Int64.add(state.offset, Int64.fromNumber(numBytes))
+          Push(numBytes)
+          void
         },
-        Fd(fd) => {
-          match (fdWrite(fd, value)) {
-            Ok(numBytes) => {
-              Push(numBytes)
-              void
-            },
-            Err(e) => {
-              state.talkback(Error(toString(e)))
-              void
-            },
-          }
+        Err(e) => {
+          logWriteFile(toString(e))
+          state.talkback(Error(toString(e)))
         },
       }
+
       state.talkback(Pull)
     },
     Push(_) => logWriteFile("Push(_)" ++ toString(state)),

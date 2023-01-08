@@ -112,12 +112,12 @@ export let systemErrors = (error, context) => {
   let num = if (sysError) parseSystemError(error) else None
   match (num) {
     Some(n) => {
-      let e = systemErrorToString(n) ++ "\n    :" ++ toString(context)
+      let e = systemErrorToString(n) ++ " :" ++ toString(context)
       logSystemError(e)
       Err(e)
     },
     None => {
-      let e = toString(error) ++ "\n    :" ++ toString(context)
+      let e = toString(error) ++ " :" ++ toString(context)
       if (isSystemErrorString(error)) logSystemError(e) else logUnknownError(e)
       Err(e)
     },

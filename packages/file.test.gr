@@ -12,10 +12,7 @@ import { logSuccess, logError, logInfo } from "./debug"
 
 import * from "./file"
 
-// cleanup ====================================== //
-removeDirForce(File.pwdfd, "./temp")
 removeDirForce(File.pwdfd, "./tmp")
-// cleanup ====================================== //
 
 assert fdIsPwd(File.pwdfd)
 assert !fdIsPwd(File.stdin)
@@ -53,10 +50,10 @@ assert Result.isOk(removeDir(Path("./tmp")))
 assert Result.isErr(removeDir(Path("./tmp")))
 
 assert removeDir(Path("./tmp")) ==
-  Err("SystemError_ENOENT: No such file or directory.\n    :./tmp")
+  Err("SystemError_ENOENT: No such file or directory. :./tmp")
 assert Result.isOk(createDir(FdPath(File.pwdfd, "./tmp")))
 assert createDir(FdPath(File.pwdfd, "./tmp")) ==
-  Err("SystemError_EEXIST: File exists.\n    :./tmp")
+  Err("SystemError_EEXIST: File exists. :./tmp")
 let fileFdResult = touch(Path("./tmp/touch-file"))
 assert Result.isOk(fileFdResult)
 let fileFd = Result.unwrap(fileFdResult)
@@ -76,22 +73,34 @@ let openFileResult = openFile(
 )
 assert Result.isOk(openFileResult)
 let fileFd = Result.unwrap(openFileResult)
-assert ls(fileFd) == Err("SystemError_EPERM: Operation not permitted.\n    :./")
+assert ls(fileFd) == Err("SystemError_EPERM: Operation not permitted. :./")
 assert Result.isOk(createDir(Path("./tmp/directory")))
 assert listDirPaths(Path("./tmp")) ==
   Some((["directory"], ["touch-file", "create-file"]))
 
-ensureFile(Path("./temp/x"))
-ensureFile(Path("./temp/y"))
-ensureFile(Path("./temp/z"))
-ensureDir(Path("./temp//a"))
-ensureDir(Path("./temp//b"))
-ensureFile(Path("./temp//b///z"))
-ensureFile(Path("./temp//b/c"))
-ensureFile(Path("./temp//b/c///q"))
-print(
-  ensureFile(Path("./temp//b/c///q/1"))
-) // this is wrong. todo. q is a file already!
+Result.isOk(ensureFile(Path("./tmp/x")))
+Result.isOk(ensureFile(Path("./tmp/y")))
+Result.isOk(ensureFile(Path("./tmp/z")))
+Result.isOk(ensureDir(Path("./tmp//a")))
+Result.isOk(ensureDir(Path("./tmp//b")))
+Result.isOk(ensureDir(Path("./tmp//b")))
+Result.isOk(ensureFile(Path("./tmp//b///z")))
+Result.isOk(ensureFile(Path("./tmp//b///z")))
+
+Result.isOk(ensureFile(Path("./tmp//b/c///q")))
+
+let writesucess = writeFile(
+  Path(normalisePath("./tmp//b/c///q")),
+  [],
+  "file with content"
+)
+assert Result.isOk(writesucess)
+
+assert ensureFile(Path("./tmp//b/c///q/1")) ==
+  Err(
+    "SystemError_ENOTDIR: Not a directory or a symbolic link to a directory. :./tmp//b/c///q/1"
+  )
+assert Result.isOk(ensureFile(Path("./tmp/b/c/r")))
 
 let content = "0123456789abcdefgh\nijk\nlmnop"
 let written = writeFile(Path("./tmp/write-file"), [], content)
@@ -117,16 +126,11 @@ match (Result.unwrap(readFile(Fd(fd), [], 99))) {
 match (Result.unwrap(readFile(Path("./tmp/write-file"), [], 99))) {
   (fd, data) =>
     match (data) {
-      (string, num) => {
-        print(string)
-        print(num)
-        assert string == content ++ content && num == 56
-      },
+      (string, num) => assert string == content ++ content && num == 56,
     },
 }
 
 // cleanup ====================================== //
-removeDirForce(File.pwdfd, "./temp")
 removeDirForce(File.pwdfd, "./tmp")
 
 logSuccess("\n\nTests pass\n")

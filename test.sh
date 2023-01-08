@@ -17,14 +17,13 @@ main() {
   done
   # test "./test.gr"
 
-  echoerr
-  echoerr
+  echo
+  echo
 
   if [ "$Failed" = 0 ]; then
     printerr "\x1b[32m=============================\x1b[0m\n"
     printerr " ✅ \x1b[32mAll %s test files passed.\x1b[0m\n" "$Passed"
     printerr "\x1b[32m=============================\x1b[0m\n"
-    echoerr
     ./clean.sh
     exit 0
 
@@ -33,7 +32,6 @@ main() {
     printerr " ✅ \x1b[32m%s test files passed.\x1b[0m\n" "$Passed"
     printerr " ❌ \x1b[41m%s test files failed.\x1b[0m\n" "$Failed"
     printerr "\x1b[31m=========================\x1b[0m\n"
-    echoerr ""
     ./clean.sh
     exit 1
   fi

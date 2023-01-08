@@ -1,0 +1,125 @@
+import String from "string"
+import Result from "result"
+import Number from "number"
+import { logSuccess, logError, logInfo, debug } from "./debug"
+import { red, green, cyan, yellow, magenta } from "./colours"
+
+export let systemErrorToString = code => {
+  match (code) {
+    0 =>
+      "SystemError_ESUCCESS: No error occurred. System call completed successfully.",
+    1 => "SystemError_ETOOBIG: Argument list too long.",
+    2 => "SystemError_EACCES: Permission denied.",
+    3 => "SystemError_EADDRINUSE: Address in use.",
+    4 => "SystemError_EADDRNOTAVAIL: Address not available.",
+    5 => "SystemError_EAFNOSUPPORT: Address family not supported.",
+    6 => "SystemError_EAGAIN: Resource unavailable, or operation would block.",
+    7 => "SystemError_EALREADY: Connection already in progress.",
+    8 => "SystemError_EBADF: Bad file descriptor.",
+    9 => "SystemError_EBADMSG: Bad message.",
+    10 => "SystemError_EBUSY: Device or resource busy.",
+    11 => "SystemError_ECANCELED: Operation canceled.",
+    12 => "SystemError_ECHILD: No child processes.",
+    13 => "SystemError_ECONNABORTED: Connection aborted.",
+    14 => "SystemError_ECONNREFUSED: Connection refused.",
+    15 => "SystemError_ECONNRESET: Connection reset.",
+    16 => "SystemError_EDEADLK: Resource deadlock would occur.",
+    17 => "SystemError_EDESTADDRREQ: Destination address required.",
+    18 => "SystemError_EDOM: Mathematics argument out of domain of function.",
+    19 => "SystemError_EDQUOT: Reserved.",
+    20 => "SystemError_EEXIST: File exists.",
+    21 => "SystemError_EFAULT: Bad address.",
+    22 => "SystemError_EFBIG: File too large.",
+    23 => "SystemError_EHOSTUNREACH: Host is unreachable.",
+    24 => "SystemError_EIDRM: Identifier removed.",
+    25 => "SystemError_EILSEQ: Illegal byte sequence.",
+    26 => "SystemError_EINPROGRESS: Operation in progress.",
+    27 => "SystemError_EINTR: Interrupted function.",
+    28 => "SystemError_EINVAL: Invalid argument.",
+    29 => "SystemError_EIO: I/O error.",
+    30 => "SystemError_EISCONN: Socket is connected.",
+    31 => "SystemError_EISDIR: Is a directory.",
+    32 => "SystemError_ELOOP: Too many levels of symbolic links.",
+    33 => "SystemError_EMFILE: File descriptor value too large.",
+    34 => "SystemError_EMLINK: Too many links.",
+    35 => "SystemError_EMSGSIZE: Message too large.",
+    36 => "SystemError_EMULTIHOP: Reserved.",
+    37 => "SystemError_ENAMETOOLONG: Filename too long.",
+    38 => "SystemError_ENETDOWN: Network is down.",
+    39 => "SystemError_ENETRESET: Connection aborted by network.",
+    40 => "SystemError_ENETUNREACH: Network unreachable.",
+    41 => "SystemError_ENFILE: Too many files open in system.",
+    42 => "SystemError_ENOBUFS: No buffer space available.",
+    43 => "SystemError_ENODEV: No such device.",
+    44 => "SystemError_ENOENT: No such file or directory.",
+    45 => "SystemError_ENOEXEC: Executable file format error.",
+    46 => "SystemError_ENOLCK: No locks available.",
+    47 => "SystemError_ENOLINK: Reserved.",
+    48 => "SystemError_ENOMEM: Not enough space.",
+    49 => "SystemError_ENOMSG: No message of the desired type.",
+    50 => "SystemError_ENOPROTOOPT: Protocol not available.",
+    51 => "SystemError_ENOSPC: No space left on device.",
+    52 => "SystemError_ENOSYS: Function not supported.",
+    53 => "SystemError_ENOTCONN: The socket is not connected.",
+    54 =>
+      "SystemError_ENOTDIR: Not a directory or a symbolic link to a directory.",
+    55 => "SystemError_ENOTEMPTY: Directory not empty.",
+    56 => "SystemError_ENOTRECOVERABLE: State not recoverable.",
+    57 => "SystemError_ENOTSOCK: Not a socket.",
+    58 =>
+      "SystemError_ENOTSUP: Not supported, or operation not supported on socket.",
+    59 => "SystemError_ENOTTY: Inappropriate I/O control operation.",
+    60 => "SystemError_ENXIO: No such device or address.",
+    61 => "SystemError_EOVERFLOW: Value too large to be stored in data type.",
+    62 => "SystemError_EOWNERDEAD: Previous owner died.",
+    63 => "SystemError_EPERM: Operation not permitted.",
+    64 => "SystemError_EPIPE: Broken pipe.",
+    65 => "SystemError_EPROTO: Protocol error.",
+    66 => "SystemError_EPROTONOSUPPORT: Protocol not supported.",
+    67 => "SystemError_EPROTOTYPE: Protocol wrong type for socket.",
+    68 => "SystemError_ERANGE: Result too large.",
+    69 => "SystemError_EROFS: Read-only file system.",
+    70 => "SystemError_ESPIPE: Invalid seek.",
+    71 => "SystemError_ESRCH: No such process.",
+    72 => "SystemError_ESTALE: Reserved.",
+    73 => "SystemError_ETIMEDOUT: Connection timed out.",
+    74 => "SystemError_ETXTBSY: Text file busy.",
+    75 => "SystemError_EXDEV: Cross-device link.",
+    76 => "SystemError_ENOTCAPABLE: Extension: Capabilities insufficient.",
+    _ => "SystemError_EUNKNOWN: Unknown system error: " ++ toString(code),
+  }
+}
+
+export let isSystemError = error =>
+  String.startsWith("SystemError(", toString(error))
+
+export let isSystemErrorString = error =>
+  String.startsWith("SystemError_", toString(error))
+
+let parseSystemError = error =>
+  Result.toOption(
+    Number.parseInt(
+      String.slice(12, String.length(toString(error)) - 1, toString(error)),
+      10
+    )
+  )
+
+let logSystemError = debug("file:wasi:SystemError", Some(red))
+let logUnknownError = debug("file:wasi:UnknownError", Some(yellow))
+
+export let systemErrors = (error, context) => {
+  let sysError = isSystemError(error)
+  let num = if (sysError) parseSystemError(error) else None
+  match (num) {
+    Some(n) => {
+      let e = systemErrorToString(n) ++ "\n    :" ++ toString(context)
+      logSystemError(e)
+      Err(e)
+    },
+    None => {
+      let e = toString(error) ++ "\n    :" ++ toString(context)
+      if (isSystemErrorString(error)) logSystemError(e) else logUnknownError(e)
+      Err(e)
+    },
+  }
+}

@@ -24,8 +24,7 @@ import Random from "random"
 import { sdbmNum as hash } from "./sdbm"
 
 let stderr = message => {
-  File.fdWrite(File.stderr, "\n" ++ message)
-  void
+  ignore(File.fdWrite(File.stderr, "\n" ++ message))
 }
 
 export let logError = message => stderr(red(message))
@@ -53,8 +52,11 @@ export let colours = (num, message) =>
     _ => stderr(cyan(message)),
   }
 
-let log = (name, message) =>
-  colours(hash(name) % 13, "[" ++ name ++ "]" ++ " : " ++ message)
+let log = (name, message, colour) =>
+  match (colour) {
+    Some(c) => stderr(c("[" ++ name ++ "]" ++ " : " ++ message)),
+    None => colours(hash(name) % 13, "[" ++ name ++ "]" ++ " : " ++ message),
+  }
 
 let parseDebug = () =>
   match (Process.env()) {
@@ -77,17 +79,17 @@ let parseDebug = () =>
     },
   }
 
-export let debug = name => message => {
+export let debug = (name, colour) => message => {
   let params = parseDebug()
   match (params) {
     None => void,
     Some(p) => {
-      if (p[0] == "*") log(name, message)
+      if (p[0] == "*") log(name, message, colour)
       else match (Array.find(s => String.contains(name, s), p)) {
         None => void,
         Some(param) =>
           match (param == name) {
-            true => log(name, message),
+            true => log(name, message, colour),
             false => void,
           },
       }

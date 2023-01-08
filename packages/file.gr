@@ -8,13 +8,16 @@ import File, {
 import Result from "result"
 import Array from "array"
 import List from "list"
+import String from "string"
+import Number from "number"
 import { join } from "./path"
 import {
   parent,
   toString as pathToString,
   fromString as pathFromString,
 } from "path"
-import { logSuccess, logError, logInfo } from "./debug"
+import { logSuccess, logError, logInfo, debug } from "./debug"
+import { systemErrors } from "./syserror"
 
 export enum FilePath {
   Fd(File.FileDescriptor),
@@ -31,18 +34,6 @@ export record PathOpenOptions {
 }
 
 export let normalisePath = (path: String) => pathToString(pathFromString(path))
-
-let systemErrors = (error, path: String) => {
-  match (toString(error)) {
-    "SystemError(20)" => Err("EEXIST Entity already exists: " ++ path),
-    "SystemError(44)" => Err("ENOENT No such file or directory: " ++ path),
-    "SystemError(54)" => Err("ENOTDIR Entity is not a directory: " ++ path),
-    "SystemError(55)" => Err("ENOTEMPTY Path is not empty: " ++ path),
-    "SystemError(63)" => Err("EPERM Permission denied: " ++ path),
-    "SystemError(76)" => Err("ENOTCAPABLE Cannot open path: " ++ path),
-    _ => Err(toString(error)),
-  }
-}
 
 /**
  *    Existance
@@ -61,7 +52,7 @@ export let fdFilestats = fd =>
 
 export let pathFileStats = (fd, path) =>
   match (File.pathFilestats(fd, [File.SymlinkFollow], path)) {
-    Err(e) => systemErrors(e, path),
+    Err(e) => Err(systemErrors(e, path)),
     Ok(stats) => Ok(stats),
   }
 
@@ -254,13 +245,12 @@ export let listDirPaths = (filePath: FilePath) =>
   match (listDir(filePath)) {
     Ok(entries) => Some(reduceEntries(entries)),
     Err(e) => {
-      logError(toString(systemErrors(e, toString(filePath))))
+      systemErrors(e, toString(filePath))
       None
     },
   }
 
 let ignoreResultPrint = result => {
-  // Result.peekOk(e => (logSuccess(toString(e) ++ "\n")), result)
   Result.peekErr(e => logError(toString(e) ++ "\n"), result)
 }
 export let removeDirForce = (fd, rootPath) => {
@@ -350,7 +340,7 @@ export let readFile = (filePath: FilePath, rwFlags: List<FdFlag>, size) => {
 
   let read = (fd, path) =>
     match (File.fdRead(fd, size)) {
-      Ok(x) => Ok((fd,x)),
+      Ok(x) => Ok((fd, x)),
       Err(e) => systemErrors(e, path),
     }
 

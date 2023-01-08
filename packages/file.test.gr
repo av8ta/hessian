@@ -46,21 +46,21 @@ assert pathTo ==
     "./tmp/a/b/c/d/file",
   ]
 assert Result.isOk(createDirectory(File.pwdfd, "./tmp"))
-assert Result.isOk(removeDir(Path("./tmp")))
-assert Result.isErr(removeDir(Path("./tmp")))
+assert Result.isOk(removeDir(PwdPath("./tmp")))
+assert Result.isErr(removeDir(PwdPath("./tmp")))
 
-assert removeDir(Path("./tmp")) ==
+assert removeDir(PwdPath("./tmp")) ==
   Err("SystemError_ENOENT: No such file or directory. :./tmp")
 assert Result.isOk(createDir(FdPath(File.pwdfd, "./tmp")))
 assert createDir(FdPath(File.pwdfd, "./tmp")) ==
   Err("SystemError_EEXIST: File exists. :./tmp")
-let fileFdResult = touch(Path("./tmp/touch-file"))
+let fileFdResult = touch(PwdPath("./tmp/touch-file"))
 assert Result.isOk(fileFdResult)
 let fileFd = Result.unwrap(fileFdResult)
 assert !fdIsPwd(fileFd)
-assert entityExists(Path("./tmp/touch-file"))
+assert entityExists(PwdPath("./tmp/touch-file"))
 let newFileResult = createFile(
-  Path("./tmp/create-file"),
+  PwdPath("./tmp/create-file"),
   { lookupFlag: [], openFlags: [], rights: [], inheriting: [], rwFlags: [] }
 )
 let newFileFd = Result.unwrap(newFileResult)
@@ -68,47 +68,47 @@ assert !fdIsPwd(newFileFd)
 assert Result.isOk(ls(File.pwdfd))
 
 let openFileResult = openFile(
-  Path("./tmp/create-file"),
+  PwdPath("./tmp/create-file"),
   { lookupFlag: [], openFlags: [], rights: [], inheriting: [], rwFlags: [] }
 )
 assert Result.isOk(openFileResult)
 let fileFd = Result.unwrap(openFileResult)
 assert ls(fileFd) == Err("SystemError_EPERM: Operation not permitted. :./")
-assert Result.isOk(createDir(Path("./tmp/directory")))
-assert listDirPaths(Path("./tmp")) ==
+assert Result.isOk(createDir(PwdPath("./tmp/directory")))
+assert listDirPaths(PwdPath("./tmp")) ==
   Some((["directory"], ["touch-file", "create-file"]))
 
-Result.isOk(ensureFile(Path("./tmp/x")))
-Result.isOk(ensureFile(Path("./tmp/y")))
-Result.isOk(ensureFile(Path("./tmp/z")))
-Result.isOk(ensureDir(Path("./tmp//a")))
-Result.isOk(ensureDir(Path("./tmp//b")))
-Result.isOk(ensureDir(Path("./tmp//b")))
-Result.isOk(ensureFile(Path("./tmp//b///z")))
-Result.isOk(ensureFile(Path("./tmp//b///z")))
+Result.isOk(ensureFile(PwdPath("./tmp/x")))
+Result.isOk(ensureFile(PwdPath("./tmp/y")))
+Result.isOk(ensureFile(PwdPath("./tmp/z")))
+Result.isOk(ensureDir(PwdPath("./tmp//a")))
+Result.isOk(ensureDir(PwdPath("./tmp//b")))
+Result.isOk(ensureDir(PwdPath("./tmp//b")))
+Result.isOk(ensureFile(PwdPath("./tmp//b///z")))
+Result.isOk(ensureFile(PwdPath("./tmp//b///z")))
 
-Result.isOk(ensureFile(Path("./tmp//b/c///q")))
+Result.isOk(ensureFile(PwdPath("./tmp//b/c///q")))
 
 let writesucess = writeFile(
-  Path(normalisePath("./tmp//b/c///q")),
+  PwdPath(normalisePath("./tmp//b/c///q")),
   [],
   "file with content"
 )
 assert Result.isOk(writesucess)
 
-assert ensureFile(Path("./tmp//b/c///q/1")) ==
+assert ensureFile(PwdPath("./tmp//b/c///q/1")) ==
   Err(
     "SystemError_ENOTDIR: Not a directory or a symbolic link to a directory. :./tmp//b/c///q/1"
   )
-assert Result.isOk(ensureFile(Path("./tmp/b/c/r")))
+assert Result.isOk(ensureFile(PwdPath("./tmp/b/c/r")))
 
 let content = "0123456789abcdefgh\nijk\nlmnop"
-let written = writeFile(Path("./tmp/write-file"), [], content)
+let written = writeFile(PwdPath("./tmp/write-file"), [], content)
 assert Result.isOk(written)
-let written2 = writeFile(Path("./tmp/write-file"), [File.Append], content)
+let written2 = writeFile(PwdPath("./tmp/write-file"), [File.Append], content)
 assert Result.isOk(written2)
 
-let (fd, data) = Result.unwrap(readFile(Path("./tmp/write-file"), [], 10))
+let (fd, data) = Result.unwrap(readFile(PwdPath("./tmp/write-file"), [], 10))
 let (fd, data2) = Result.unwrap(readFile(Fd(fd), [], 99))
 let (string1, _) = data
 let (string2, _) = data2
@@ -123,7 +123,7 @@ match (Result.unwrap(readFile(Fd(fd), [], 99))) {
     },
 }
 
-match (Result.unwrap(readFile(Path("./tmp/write-file"), [], 99))) {
+match (Result.unwrap(readFile(PwdPath("./tmp/write-file"), [], 99))) {
   (fd, data) =>
     match (data) {
       (string, num) => assert string == content ++ content && num == 56,

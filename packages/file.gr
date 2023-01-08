@@ -21,7 +21,7 @@ import { systemErrors } from "./syserror"
 
 export enum FilePath {
   Fd(File.FileDescriptor),
-  Path(String), /* fd = File.pwdfd */
+  PwdPath(String), /* fd = File.pwdfd */
   FdPath(File.FileDescriptor, String),
 }
 
@@ -59,7 +59,7 @@ export let pathFileStats = (fd, path) =>
 export let statEntity = (file: FilePath) =>
   match (file) {
     Fd(fd) => pathFileStats(fd, "./"),
-    Path(path) => pathFileStats(File.pwdfd, path),
+    PwdPath(path) => pathFileStats(File.pwdfd, path),
     FdPath(fd, path) => pathFileStats(fd, path),
   }
 
@@ -97,7 +97,7 @@ export let createDirectory = (fd, path) => {
 export let createDir = (filePath: FilePath) => {
   match (filePath) {
     Fd(f) => createDirectory(f, "./"),
-    Path(path) => createDirectory(File.pwdfd, path),
+    PwdPath(path) => createDirectory(File.pwdfd, path),
     FdPath(fd, path) => createDirectory(fd, path),
   }
 }
@@ -111,7 +111,7 @@ export let rmDir = (fd, path) =>
 export let removeDir = (filePath: FilePath) => {
   match (filePath) {
     Fd(f) => rmDir(f, "./"),
-    Path(path) => rmDir(File.pwdfd, path),
+    PwdPath(path) => rmDir(File.pwdfd, path),
     FdPath(fd, path) => rmDir(fd, path),
   }
 }
@@ -125,7 +125,7 @@ export let rmFile = (fd, path) =>
 export let removeFile = (filePath: FilePath) => {
   match (filePath) {
     Fd(f) => rmFile(f, "./"),
-    Path(path) => rmFile(File.pwdfd, path),
+    PwdPath(path) => rmFile(File.pwdfd, path),
     FdPath(fd, path) => rmFile(fd, path),
   }
 }
@@ -140,7 +140,7 @@ export let touch = (file: FilePath) => {
   }
   match (file) {
     Fd(f) => open(f, "./"),
-    Path(path) => open(File.pwdfd, path),
+    PwdPath(path) => open(File.pwdfd, path),
     FdPath(f, path) => open(f, path),
   }
 }
@@ -165,7 +165,7 @@ export let openFile = (file: FilePath, options: PathOpenOptions) => {
   }
   match (file) {
     Fd(f) => open(f, "./"),
-    Path(path) => open(File.pwdfd, path),
+    PwdPath(path) => open(File.pwdfd, path),
     FdPath(f, path) => open(f, path),
   }
 }
@@ -182,8 +182,8 @@ export let createFile = (file: FilePath, options: PathOpenOptions) => {
 export let openFdCallback = (filePath: FilePath, options, callback) => {
   match (filePath) {
     Fd(fd) => callback(fd, "./"),
-    Path(path) =>
-      match (openFile(Path(path), options)) {
+    PwdPath(path) =>
+      match (openFile(PwdPath(path), options)) {
         Ok(fd) => callback(fd, path),
         Err(e) => systemErrors(e, path),
       },
@@ -198,7 +198,7 @@ export let openFdCallback = (filePath: FilePath, options, callback) => {
 export let fdCallback = (filePath: FilePath, callback) =>
   match (filePath) {
     Fd(fd) => callback(fd, "./"),
-    Path(path) => callback(File.pwdfd, path),
+    PwdPath(path) => callback(File.pwdfd, path),
     FdPath(fd, path) => callback(fd, path),
   }
 
@@ -218,8 +218,8 @@ export let listDir = (filePath: FilePath) => {
   }
   match (filePath) {
     Fd(fd) => ls(fd),
-    Path(path) =>
-      match (openFile(Path(path), options)) {
+    PwdPath(path) =>
+      match (openFile(PwdPath(path), options)) {
         Ok(fd) => ls(fd),
         Err(e) => systemErrors(e, path),
       },

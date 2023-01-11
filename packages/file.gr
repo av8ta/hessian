@@ -19,6 +19,9 @@ import {
 import { logSuccess, logError, logInfo, debug } from "./debug"
 import { systemErrors } from "./syserror"
 
+/**
+ * @section subtitle: Types
+ */
 export enum FilePath {
   Fd(File.FileDescriptor),
   PwdPath(String), /* fd = File.pwdfd */
@@ -33,38 +36,47 @@ export record PathOpenOptions {
   rwFlags: List<File.FdFlag>,
 }
 
-export let normalisePath = (path: String) => pathToString(pathFromString(path))
-
 /**
- *    Existance
+ * @section subtitle: Helpers
  */
-
 export let fdIsPwd = fd => fd == File.pwdfd
 export let fdIsStdin = fd => fd == File.stdin
 export let fdIsStdout = fd => fd == File.stdout
 export let fdIsStderr = fd => fd == File.stderr
 
+export let normalisePath = (path: String) => pathToString(pathFromString(path))
+
+let ignoreResultPrint = result => {
+  Result.peekErr(e => logError(toString(e) ++ "\n"), result)
+}
+
+/**
+ * @section subtitle: File information
+ */
 export let fdFilestats = fd =>
   match (File.fdFilestats(fd)) {
     Ok(stats) => Ok(stats),
     Err(e) => systemErrors(e, "./"),
   }
 
-export let pathFileStats = (fd, path) =>
+let statEntity = (fd, path) =>
   match (File.pathFilestats(fd, [File.SymlinkFollow], path)) {
     Err(e) => Err(systemErrors(e, path)),
     Ok(stats) => Ok(stats),
   }
 
-export let statEntity = (file: FilePath) =>
+export let pathFileStats = (file: FilePath) =>
   match (file) {
-    Fd(fd) => pathFileStats(fd, "./"),
-    PwdPath(path) => pathFileStats(File.pwdfd, path),
-    FdPath(fd, path) => pathFileStats(fd, path),
+    Fd(fd) => statEntity(fd, "./"),
+    PwdPath(path) => statEntity(File.pwdfd, path),
+    FdPath(fd, path) => statEntity(fd, path),
   }
 
+/**
+ * @section subtitle: Existence
+ */
 export let entityExists = (file: FilePath) =>
-  match (statEntity(file)) {
+  match (pathFileStats(file)) {
     Ok(_) => true,
     _ => false,
   }
@@ -83,10 +95,9 @@ export let findExistingParent = (fd, path: String) => {
 }
 
 /**
- *    Creation
+ * @section subtitle: Creation
  */
-
-export let createDirectory = (fd, path) => {
+let createDirectory = (fd, path) => {
   let dirPath = normalisePath(path)
   match (File.pathCreateDirectory(fd, dirPath)) {
     Ok(_) => Ok(void),
@@ -102,35 +113,7 @@ export let createDir = (filePath: FilePath) => {
   }
 }
 
-export let rmDir = (fd, path) =>
-  match (File.pathRemoveDirectory(fd, path)) {
-    Ok(_) => Ok(void),
-    Err(e) => systemErrors(e, path),
-  }
-
-export let removeDir = (filePath: FilePath) => {
-  match (filePath) {
-    Fd(f) => rmDir(f, "./"),
-    PwdPath(path) => rmDir(File.pwdfd, path),
-    FdPath(fd, path) => rmDir(fd, path),
-  }
-}
-
-export let rmFile = (fd, path) =>
-  match (File.pathUnlink(fd, path)) {
-    Err(e) => systemErrors(e, path),
-    _ => Ok(void),
-  }
-
-export let removeFile = (filePath: FilePath) => {
-  match (filePath) {
-    Fd(f) => rmFile(f, "./"),
-    PwdPath(path) => rmFile(File.pwdfd, path),
-    FdPath(fd, path) => rmFile(fd, path),
-  }
-}
-
-export let touch = (file: FilePath) => {
+let touch = (file: FilePath) => {
   let open = (fd, path) => {
     let opened = File.pathOpen(fd, [], path, [File.Create], [], [], [])
     match (opened) {
@@ -145,6 +128,40 @@ export let touch = (file: FilePath) => {
   }
 }
 
+/**
+ * @section subtitle: Deletion
+ */
+let rmDir = (fd, path) =>
+  match (File.pathRemoveDirectory(fd, path)) {
+    Ok(_) => Ok(void),
+    Err(e) => systemErrors(e, path),
+  }
+
+export let removeDir = (filePath: FilePath) => {
+  match (filePath) {
+    Fd(f) => rmDir(f, "./"),
+    PwdPath(path) => rmDir(File.pwdfd, path),
+    FdPath(fd, path) => rmDir(fd, path),
+  }
+}
+
+let rmFile = (fd, path) =>
+  match (File.pathUnlink(fd, path)) {
+    Err(e) => systemErrors(e, path),
+    _ => Ok(void),
+  }
+
+export let removeFile = (filePath: FilePath) => {
+  match (filePath) {
+    Fd(f) => rmFile(f, "./"),
+    PwdPath(path) => rmFile(File.pwdfd, path),
+    FdPath(fd, path) => rmFile(fd, path),
+  }
+}
+
+/**
+ * @section subtitle: Opening files
+ */
 export let openFile = (file: FilePath, options: PathOpenOptions) => {
   let { lookupFlag, openFlags, rights, inheriting, rwFlags } = options
 
@@ -195,19 +212,33 @@ export let openFdCallback = (filePath: FilePath, options, callback) => {
   }
 }
 
-export let fdCallback = (filePath: FilePath, callback) =>
+let fdCallback = (filePath: FilePath, callback) =>
   match (filePath) {
     Fd(fd) => callback(fd, "./"),
     PwdPath(path) => callback(File.pwdfd, path),
     FdPath(fd, path) => callback(fd, path),
   }
 
-export let ls = fd =>
+/**
+ * @section subtitle: Directory entries
+ */
+
+/**
+ * @param fd: FileDescriptor to list contents.
+ * @returns   Array of DirectoryEntry or None
+ * @example   ls(Fd(File.pwdfd))
+ */
+let ls = fd =>
   match (File.fdReaddir(fd)) {
     Ok(entries) => Ok(entries),
     Err(e) => systemErrors(e, "./"),
   }
 
+/**
+ * @param filePath: FilePath to list contents.
+ * @returns         Array of DirectoryEntry or None
+ * @example         listDir(PwdPath("./a/dir/with/contents/"))
+ */
 export let listDir = (filePath: FilePath) => {
   let options = {
     lookupFlag: [],
@@ -231,6 +262,11 @@ export let listDir = (filePath: FilePath) => {
   }
 }
 
+/**
+ * @param entries:  Array of DirectoryEntry to reduce.
+ * @returns         Tuple of Lists: (dirs, files)
+ * @example         reduceEntries(Result.unwrap(listDir(PwdPath("./"))))
+ */
 export let reduceEntries = entries =>
   Array.reduce((acc, entry: DirectoryEntry) => {
     let (dirs, files) = acc
@@ -241,6 +277,11 @@ export let reduceEntries = entries =>
     }
   }, ([], []), entries)
 
+/**
+ * @param filePath: FilePath to list contents.
+ * @returns         Tuple of (dirs, files) lists
+ * @example         listDirPaths(PwdPath("./a/dir/with/contents/"))
+ */
 export let listDirPaths = (filePath: FilePath) =>
   match (listDir(filePath)) {
     Ok(entries) => Some(reduceEntries(entries)),
@@ -250,9 +291,15 @@ export let listDirPaths = (filePath: FilePath) =>
     },
   }
 
-let ignoreResultPrint = result => {
-  Result.peekErr(e => logError(toString(e) ++ "\n"), result)
-}
+/**
+ * @section subtitle: Recursive creation/deletion
+ */
+
+/**
+ * @param fd: FileDescriptor of directory to recursively delete.
+ * @returns   void.
+ * @example   removeDirForce(PwdPath("./a/dir/with/contents/"))
+ */
 export let removeDirForce = (fd, rootPath) => {
   let rec recurse = (fd, path) => {
 
@@ -282,6 +329,13 @@ let mkdirp = (fd, paths: List<String>) => {
   }
 }
 
+/**
+ * @param filePath: FilePath to write to.
+ * @returns         void on success or list of error strings.
+ * @example         ensureDir(PwdPath("./a/bunch/of/non/existent/dirs"))
+ * 
+ * Exceptions are stringified & returned as Err(String) so you can handle them.
+ */
 export let ensureDir = (filePath: FilePath) => {
   let makePath = (fd, path) => {
     let dirPath = normalisePath(path)
@@ -291,6 +345,15 @@ export let ensureDir = (filePath: FilePath) => {
   fdCallback(filePath, makePath)
 }
 
+/**
+ * @param filePath: FilePath to create file if not present.
+ * @returns         fd or error string.
+ * @example         ensureFile(PwdPath("./write.txt"))
+ * 
+ * Ensures file exists but gives no further permissions to the returned file descriptor.
+ * 
+ * Exceptions are stringified & returned as Err(String) so you can handle them.
+ */
 export let ensureFile = (filePath: FilePath) => {
   let makePath = (fd, path) => {
     let dirPath = pathToString(parent(pathFromString(normalisePath(path))))
@@ -301,12 +364,22 @@ export let ensureFile = (filePath: FilePath) => {
   fdCallback(filePath, makePath)
 }
 
-export let writeFile =
-  (
-    filePath: FilePath,
-    rwFlags: List<FdFlag>,
-    data: String,
-  ) => {
+/**
+ * @section subtitle: Read and Write
+ */
+
+/**
+ * @param filePath: FilePath to write to.
+ * @param rwFlags:  Write flags e.g. [File.Append]
+ * @param data:     Data to write.
+ * @returns         Ok(numBytes) | Err(String)
+ * @example writeFile(PwdPath(      "./write.txt"), [], "data overwritten to ./write.txt")
+ * @example writeFile(FdPath(fd,    "./write.txt"), [File.Append], "data appended to some-fd-dir/write.txt")
+ * @example writeFile(Fd(File.pwdfd,"./write.txt"), [File.Append], "data appended to ./write.txt")
+ * 
+ * Exceptions are stringified & returned as Err(String) so you can handle them.
+ */
+export let writeFile = (filePath, rwFlags, data) => {
   let options = {
     lookupFlag: [],
     openFlags: [File.Create],
@@ -317,9 +390,9 @@ export let writeFile =
 
   let write = (fd, path) =>
     match (createFile(filePath, options)) {
-      Ok(fd) => {
-        match (File.fdWrite(fd, data)) {
-          Ok(x) => Ok(x),
+      Ok(f) => {
+        match (File.fdWrite(f, data)) {
+          Ok(x) => Ok((f, x)),
           Err(e) => systemErrors(e, path),
         }
       },
@@ -329,6 +402,17 @@ export let writeFile =
   fdCallback(filePath, write)
 }
 
+/**
+ * @param filePath: FilePath to read from.
+ * @param rwFlags:  Read flags.
+ * @param size:     Max number of bytes to read.
+ * @returns         (fd, (data, numBytes))
+ * @example readFile(PwdPath("./write.txt"), [], 1024)
+ * @example readFile(FdPath(fd,    "./write.txt"), [], 1024)
+ * @example readFile(Fd(File.pwdfd,"./write.txt"), [], 1024)
+ * 
+ * Exceptions are stringified & returned as Err(String) so you can handle them.
+ */
 export let readFile = (filePath: FilePath, rwFlags: List<FdFlag>, size) => {
   let options = {
     lookupFlag: [],
@@ -351,7 +435,8 @@ export let readFile = (filePath: FilePath, rwFlags: List<FdFlag>, size) => {
   openFdCallback(filePath, options, read)
 }
 
-export let readFileFd = (fd, size: Number) =>
+// this should probably exist but I don't seem to be actually using it!
+let readFileFd = (fd, size: Number) =>
   match (File.fdRead(fd, size)) {
     Ok(x) => Ok(x),
     Err(e) => systemErrors(e, toString(fd)),

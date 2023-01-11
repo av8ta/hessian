@@ -8,6 +8,8 @@
 
 Photo by <a href="https://unsplash.com/@clemono?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Clem Onojeghuo</a> on <a href="https://unsplash.com/photos/Nd93qsjX71k?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText">Unsplash</a>
 
+> WIP still being built!
+
 # Usage
 
 ```javascript
@@ -63,6 +65,6 @@ readFile(stdinOptions)  |>
 grain serialise | grain deserialise
 ```
 
-```
-Hi from Bob
+```shell
+Some("Hi from Bob")
 ```

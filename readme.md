@@ -11,7 +11,7 @@ Photo by <a href="https://unsplash.com/@clemono?utm_source=unsplash&utm_medium=r
 # Usage
 
 ```javascript
-import * from "./index"
+import * from "./hessian"
 import * from "./types"
 
 let producer = pipe2(

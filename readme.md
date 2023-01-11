@@ -13,33 +13,56 @@ Photo by <a href="https://unsplash.com/@clemono?utm_source=unsplash&utm_medium=r
 ```javascript
 import * from "./hessian"
 import * from "./types"
+import { (|>) } from "./pipe"
 
-let producer = pipe2(
-  fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
-  map(v => v + 10)
-)
-let operators = pipe3(
-  producer, 
-  map(v => v + 10), 
-  map(v => v + 10)
-)
+let producer = fromList([1, 2, 3]) |> map(v => v + 10)
 
-pipe2(
-  operators, 
-  forEach(print)
-)
+let operators = producer |> map(v => v + 10) |> map(v => v + 10)
+
+operators |> forEach(print)
 ```
 
 ```shell
 31
 32
 33
-34
-35
-36
-37
-38
-39
-40
-41
+```
+
+```javascript
+// serialise.gr
+...
+record Human {
+  mut message: String,
+}
+
+let value = { message: "Hi from Bob", }
+print(Bytes.toString(marshal(value)))
+```
+
+```javascript
+// deserialise.gr
+...
+let stdinOptions = {
+  file: Fd(File.stdin),
+  rwFlags: [],
+  size: 1024,
+}: Sources.ReadFileOptions
+
+let deserialise = message => {
+  let parsed = Result.map((bob: Human) => bob.message, unmarshal(message))
+  Result.toOption(parsed)
+}
+
+readFile(stdinOptions)  |>
+  map(Bytes.fromString) |>
+  map(deserialise) |>
+  forEach(print)
+```
+
+```shell
+grain serialise | grain deserialise
+```
+
+```
+Hi from Bob
 ```
